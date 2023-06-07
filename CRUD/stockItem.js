@@ -18,7 +18,7 @@ router.post("/", (req, res) => {
   })
   // read
   router.get("/", (req, res) => {
-    const qgetItem = "SELECT * FROM repuestos LIMIT 50";
+    const qgetItem = "SELECT * FROM repuestos";
     db.query(qgetItem, (err, result) => {
       if (err) {
         console.error(err);

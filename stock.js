@@ -119,7 +119,7 @@ Fecha de ingreso => default | new Date()
   })
   // read
   app.get("/stock/item", (req, res) => {
-    const qgetItem = "SELECT * FROM repuestos LIMIT 50";
+    const qgetItem = "SELECT * FROM repuestos";
     db.query(qgetItem, (err, result) => {
       if (err) {
         console.error(err);
@@ -190,7 +190,7 @@ Fecha de ingreso => default | new Date()
   })
   // read
   app.get("/supplier", (req, res) => {
-    const qgetSupplier = `SELECT * FROM proveedores LIMIT 20`;
+    const qgetSupplier = `SELECT * FROM proveedores`;
     db.query(qgetSupplier, (err, result) => {
       if (err) {
         console.error(err);

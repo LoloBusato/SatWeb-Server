@@ -25,7 +25,7 @@ router.post("/", (req, res) => {
   })
   // read
   router.get("/", (req, res) => {
-    const qgetSupplier = `SELECT * FROM proveedores LIMIT 20`;
+    const qgetSupplier = `SELECT * FROM proveedores`;
     db.query(qgetSupplier, (err, result) => {
       if (err) {
         console.error(err);
