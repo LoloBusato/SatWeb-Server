@@ -7,7 +7,7 @@ const db = require('../database/dbConfig');
 // CRUD de movname
 // create
 router.post('/', async (req, res) => {
-    const { ingreso, egreso, operacion, monto, userId } = req.body;
+    const { ingreso, egreso, operacion, monto, userId, branch_id } = req.body;
 
     const fechaActual = new Date();
     const anio = (fechaActual.getFullYear()).toString().slice(-2);
@@ -21,10 +21,11 @@ router.post('/', async (req, res) => {
         operacion, 
         monto, 
         fecha,
-        userId
+        userId,
+        branch_id
     ]
   
-    const qCreateMove= "INSERT INTO movname (ingreso, egreso, operacion, monto, fecha, userId) VALUES (?, ?, ?, ?, ?, ?)";
+    const qCreateMove= "INSERT INTO movname (ingreso, egreso, operacion, monto, fecha, userId, branch_id) VALUES (?, ?, ?, ?, ?, ?, ?)";
     db.query(qCreateMove, values, (err, result) => {
         if (err) {
         console.log("error: ", err);
@@ -34,9 +35,10 @@ router.post('/', async (req, res) => {
     });    
   });
   // read
-  router.get("/", (req, res) => {
-    const qgetMovements = "SELECT idmovname, ingreso, egreso, operacion, monto, fecha, username FROM satweb.movname JOIN users ON userId = idusers ORDER BY str_to_date(fecha, '%d/%m/%y') DESC;";
-    db.query(qgetMovements, (err, data) => {
+  router.get("/:id", (req, res) => {
+    const moveId = req.params.id;
+    const qgetMovements = "SELECT idmovname, ingreso, egreso, operacion, monto, fecha, username FROM satweb.movname JOIN users ON userId = idusers WHERE branch_id = ? ORDER BY str_to_date(fecha, '%d/%m/%y') DESC;";
+    db.query(qgetMovements, [moveId], (err, data) => {
       if (err) {
         console.log(err);
         return res.status(400).json(err);
