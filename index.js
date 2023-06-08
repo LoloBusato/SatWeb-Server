@@ -12,6 +12,7 @@ const db = require('./database/dbConfig');
 // Usuarios
 const loginRoutes = require('./CRUD/login');
 const usersRoutes = require('./CRUD/users');
+const grupoRoutes = require('./CRUD/usergroup')
 // Ordenes
 const devicesRoutes = require('./CRUD/devices');
 const brandRoutes = require('./CRUD/brand');
@@ -35,6 +36,7 @@ const movnameRoutes = require('./CRUD/movname');
 // Usar rutas CRUD
 app.use('/users/login', loginRoutes);
 app.use('/users', usersRoutes);
+app.use('/grupousuarios', grupoRoutes);
 // Ordenes
 app.use('/devices', devicesRoutes);
 app.use('/brand', brandRoutes);
