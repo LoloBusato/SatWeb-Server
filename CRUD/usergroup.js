@@ -6,33 +6,21 @@ const db = require('../database/dbConfig');
 // CRUD de usuarios
 // create
 router.post("/", (req, res) => {
-  const { username, password } = req.body;
+    const { grupo, permisos } = req.body;
 
-  const qexist = 'SELECT * FROM users WHERE username = ?'
-  const values = [username, password]
-  const qcreate = 'INSERT INTO users (username, password) VALUES (?, ?)'
-
-  db.query(qexist, [username], (err, data) => {
+    const values = [grupo, permisos]
+    const qcreate = 'INSERT INTO grupousuarios (grupo, permisos) VALUES (?, ?)'
+    db.query(qcreate, values, (err, data) => {
     if (err) {
-      console.log("error: ", err);
-      return res.send(err);
+        console.log("error: ", err);
+        return res.send(err);
     }
-    if(data.length > 0){
-      return res.status(400).send("Usuario con ese nombre ya creado");
-    } else {
-      db.query(qcreate, values, (err, data) => {
-        if (err) {
-          console.log("error: ", err);
-          return res.send(err);
-        }
-        return res.status(200).send("Usuario creado con exito")
-      })
-    }
-  });
+    return res.status(200).send("Usuario creado con exito")
+    })
 })
 // read
 router.get("/", (req, res) => {
-  const qgetUsers = "SELECT * FROM users";
+  const qgetUsers = "SELECT * FROM grupousuarios";
   db.query(qgetUsers, (err, data) => {
     if (err) {
       console.log(err);
@@ -44,12 +32,10 @@ router.get("/", (req, res) => {
 // update
 router.put("/:id", (req, res) => {
   const userId = req.params.id;
-  const qupdateUser = "UPDATE users SET `username`= ?, `password`= ? WHERE idusers = ?";
+  const [grupo, permisos] = req.body
+  const qupdateUser = "UPDATE grupousuarios SET `grupo`= ?, `permisos`= ? WHERE idgrupousuarios = ?";
 
-  const values = [
-    req.body.username,
-    req.body.password
-  ];
+  const values = [grupo,permisos];
 
   db.query(qupdateUser, [...values,userId], (err, data) => {
     if (err) return res.status(400).send(err);
@@ -59,7 +45,7 @@ router.put("/:id", (req, res) => {
 // delete
 router.delete("/:id", (req, res) => {
   const userId = req.params.id;
-  const qdeleteUser = " DELETE FROM users WHERE idusers = ? ";
+  const qdeleteUser = " DELETE FROM grupousuarios WHERE idgrupousuarios = ? ";
 
   db.query(qdeleteUser, [userId], (err, data) => {
     if (err) return res.status(400).send(err);
