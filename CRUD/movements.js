@@ -8,12 +8,13 @@ const db = require('../database/dbConfig');
 // create
 router.post('/', async (req, res) => {
   const { arrayInsert } = req.body;
+  const movCatId = 0
+  const unidades = 1
+  const movNameId = 2
+  const branch_id = 3
+  const values = arrayInsert.map(element => [element[movCatId], element[unidades], element[movNameId], element[branch_id]]);
 
-  // arrayInsert = [[movCategoriesId, unidades, movnameId], [movCategoriesId, unidades, movnameId], ...]
-
-  const values = arrayInsert.map(element => [element[0], element[1], element[2]]);
-
-  const qCreateMove = "INSERT INTO movements (movcategories_id, unidades, movname_id) VALUES ?";
+  const qCreateMove = "INSERT INTO movements (movcategories_id, unidades, movname_id, branch_id) VALUES ?";
 
   db.query(qCreateMove, [values], (err, data) => {
     if (err) {
@@ -24,9 +25,10 @@ router.post('/', async (req, res) => {
   });
 });
   // read
-  router.get("/", (req, res) => {
-    const qgetMovements = "SELECT idmovements, movname_id, unidades, categories FROM satweb.movements JOIN movcategories ON movcategories_id = idmovcategories;";
-    db.query(qgetMovements, (err, data) => {
+  router.get("/:id", (req, res) => {
+    const moveId = req.params.id;
+    const qgetMovements = "SELECT idmovements, movname_id, unidades, categories FROM satweb.movements JOIN movcategories ON movcategories_id = idmovcategories WHERE branch_id = ?;";
+    db.query(qgetMovements, [moveId], (err, data) => {
       if (err) {
         console.log(err);
         return res.status(400).json(err);
