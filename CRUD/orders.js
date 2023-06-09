@@ -40,7 +40,18 @@ router.post("/", (req, res) => {
 })
 // read
 router.get("/", (req, res) => {
-  const qgetOrders = "SELECT idclients, branches.contact, branches.info, idusers, device_color, idbranches, idstates, iddevices, order_id, created_at, returned_at, problem, orders.password, accesorios, serial, name, surname, email, postal, instagram, phone, model, brand, type, branch, state, color, username FROM satweb.orders INNER JOIN satweb.clients ON satweb.orders.client_id = satweb.clients.idclients INNER JOIN satweb.devices ON satweb.orders.device_id = satweb.devices.iddevices JOIN satweb.brands ON satweb.devices.brand_id = satweb.brands.brandid JOIN satweb.types ON satweb.devices.type_id = satweb.types.typeid INNER JOIN satweb.branches ON satweb.orders.branches_id = satweb.branches.idbranches INNER JOIN satweb.states ON satweb.orders.state_id = satweb.states.idstates INNER JOIN satweb.users ON satweb.orders.users_id = satweb.users.idusers";
+  const qgetOrders = "SELECT idclients, branches.contact, branches.info, idusers, device_color, idbranches, idstates, iddevices, order_id, created_at, returned_at, problem, orders.password, accesorios, serial, name, surname, email, postal, instagram, phone, model, brand, type, branch, state, color, username FROM orders JOIN clients ON orders.client_id = clients.idclients JOIN devices ON orders.device_id = devices.iddevices JOIN brands ON devices.brand_id = brands.brandid JOIN types ON devices.type_id = types.typeid JOIN branches ON orders.branches_id = branches.idbranches JOIN states ON orders.state_id = states.idstates JOIN users ON orders.users_id = users.idusers WHERE state != 'ENTREGADO'";
+  db.query(qgetOrders, (err, data) => {
+    if (err) {
+      console.log(err);
+      return res.status(400).json("error al obtener la lista de Stock");
+    }
+    return res.status(200).json(data);
+  });
+})
+
+router.get("/entregados", (req, res) => {
+  const qgetOrders = "SELECT idclients, branches.contact, branches.info, idusers, device_color, idbranches, idstates, iddevices, order_id, created_at, returned_at, problem, orders.password, accesorios, serial, name, surname, email, postal, instagram, phone, model, brand, type, branch, state, color, username FROM orders JOIN clients ON orders.client_id = clients.idclients JOIN devices ON orders.device_id = devices.iddevices JOIN brands ON devices.brand_id = brands.brandid JOIN types ON devices.type_id = types.typeid JOIN branches ON orders.branches_id = branches.idbranches JOIN states ON orders.state_id = states.idstates JOIN users ON orders.users_id = users.idusers WHERE state = 'ENTREGADO'";
   db.query(qgetOrders, (err, data) => {
     if (err) {
       console.log(err);
