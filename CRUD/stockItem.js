@@ -18,12 +18,14 @@ router.post("/", (req, res) => {
   })
   // read
   router.get("/", (req, res) => {
+    console.log("Repuestos pedidos")
     const qgetItem = "SELECT * FROM repuestos";
     db.query(qgetItem, (err, result) => {
       if (err) {
         console.error(err);
         return res.status(500).send('Error al obtener la lista de repuestos');
       } else {
+        console.log("Repuestos encontrados", result)
         return res.status(200).send(result);
       }
     });

@@ -49,7 +49,7 @@ app.use('/reasignOrder', reasignOrderRoutes);
 // Stock
 app.use('/stock', stockRoutes);
 app.use('/reduceStock', reduceStockRoutes);
-app.use('/stock/item', stockItemRoutes);
+app.use('/stockitem', stockItemRoutes);
 app.use('/supplier', supplierRoutes);
 app.use('/states', statesRoutes);
 // Finanzas
