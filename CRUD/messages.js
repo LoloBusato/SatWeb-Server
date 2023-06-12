@@ -7,7 +7,7 @@ const db = require('../database/dbConfig');
 // CRUD de mensajes
 // create
 router.post('/', async (req, res) => {
-    const { user, message, orderId } = req.body;
+    const { username, message, orderId } = req.body;
   
     const fechaActual = new Date();
   
@@ -21,11 +21,11 @@ router.post('/', async (req, res) => {
   
     const values = [
       message,
-      user,
+      username,
       created_at,
       orderId,
     ]
-    const qCreateNote = "INSERT INTO messages (message, user, created_at, orderId) VALUES (?, ?, ?, ?)";
+    const qCreateNote = "INSERT INTO messages (message, username, created_at, orderId) VALUES (?, ?, ?, ?)";
     db.query(qCreateNote, values, (err, data) => {
       if (err) {
         console.log("error: ", err);
@@ -37,7 +37,7 @@ router.post('/', async (req, res) => {
   // read
   router.get("/:id", (req, res) => {
     const orderId = req.params.id;
-    const qgetNotes = "SELECT * FROM messages JOIN users ON messages.user_id = users.idusers WHERE orderId = ?";
+    const qgetNotes = "SELECT * FROM messages WHERE orderId = ?";
     db.query(qgetNotes, [orderId], (err, data) => {
       if (err) {
         console.log(err);
