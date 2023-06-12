@@ -10,7 +10,7 @@ router.post("/", (req, res) => {
 
   const qexist = 'SELECT * FROM users WHERE username = ?'
   const values = [username, password, branchId, grupoId]
-  const qcreate = 'INSERT INTO users (username, password, branch_id, grupo_id) VALUES (?, ?, ?, ?)'
+  const qcreate = 'INSERT INTO users (username, password, branch_id, grupos_id) VALUES (?, ?, ?, ?)'
 
   db.query(qexist, [username], (err, data) => {
     if (err) {
