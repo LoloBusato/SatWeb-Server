@@ -40,7 +40,7 @@ router.post("/", (req, res) => {
 })
 // read
 router.get("/", (req, res) => {
-  const qgetOrders = "SELECT idclients, branches.contact, branches.info, idusers, device_color, idbranches, idstates, iddevices, order_id, created_at, returned_at, problem, orders.password, accesorios, serial, name, surname, email, postal, instagram, phone, model, brand, type, branch, state, color, username FROM orders JOIN clients ON orders.client_id = clients.idclients JOIN devices ON orders.device_id = devices.iddevices JOIN brands ON devices.brand_id = brands.brandid JOIN types ON devices.type_id = types.typeid JOIN branches ON orders.branches_id = branches.idbranches JOIN states ON orders.state_id = states.idstates JOIN users ON orders.users_id = users.idusers WHERE state != 'ENTREGADO'";
+  const qgetOrders = "SELECT idclients, branches.contact, branches.info, idusers, device_color, idbranches, idstates, iddevices, order_id, created_at, returned_at, problem, orders.password, accesorios, serial, name, surname, email, postal, instagram, phone, model, brand, type, branch, state, color FROM orders JOIN clients ON orders.client_id = clients.idclients JOIN devices ON orders.device_id = devices.iddevices JOIN brands ON devices.brand_id = brands.brandid JOIN types ON devices.type_id = types.typeid JOIN branches ON orders.branches_id = branches.idbranches JOIN states ON orders.state_id = states.idstates JOIN grupousuarios ON orders.users_id = grupousuarios.idgrupousuarios WHERE state != 'ENTREGADO'";
   db.query(qgetOrders, (err, data) => {
     if (err) {
       console.log(err);
@@ -51,7 +51,7 @@ router.get("/", (req, res) => {
 })
 
 router.get("/entregados", (req, res) => {
-  const qgetOrders = "SELECT idclients, branches.contact, branches.info, idusers, device_color, idbranches, idstates, iddevices, order_id, created_at, returned_at, problem, orders.password, accesorios, serial, name, surname, email, postal, instagram, phone, model, brand, type, branch, state, color, username FROM orders JOIN clients ON orders.client_id = clients.idclients JOIN devices ON orders.device_id = devices.iddevices JOIN brands ON devices.brand_id = brands.brandid JOIN types ON devices.type_id = types.typeid JOIN branches ON orders.branches_id = branches.idbranches JOIN states ON orders.state_id = states.idstates JOIN users ON orders.users_id = users.idusers WHERE state = 'ENTREGADO'";
+  const qgetOrders = "SELECT idclients, branches.contact, branches.info, idusers, device_color, idbranches, idstates, iddevices, order_id, created_at, returned_at, problem, orders.password, accesorios, serial, name, surname, email, postal, instagram, phone, model, brand, type, branch, state, color FROM orders JOIN clients ON orders.client_id = clients.idclients JOIN devices ON orders.device_id = devices.iddevices JOIN brands ON devices.brand_id = brands.brandid JOIN types ON devices.type_id = types.typeid JOIN branches ON orders.branches_id = branches.idbranches JOIN states ON orders.state_id = states.idstates JOIN grupousuarios ON orders.users_id = grupousuarios.idgrupousuarios WHERE state = 'ENTREGADO'";
   db.query(qgetOrders, (err, data) => {
     if (err) {
       console.log(err);
