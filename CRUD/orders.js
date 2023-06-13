@@ -44,7 +44,7 @@ router.get("/", (req, res) => {
   db.query(qgetOrders, (err, data) => {
     if (err) {
       console.log(err);
-      return res.status(400).json("error al obtener la lista de Stock");
+      return res.status(400).json("error al obtener la lista de ordenes activas");
     }
     return res.status(200).json(data);
   });
@@ -55,7 +55,18 @@ router.get("/entregados", (req, res) => {
   db.query(qgetOrders, (err, data) => {
     if (err) {
       console.log(err);
-      return res.status(400).json("error al obtener la lista de Stock");
+      return res.status(400).json("error al obtener la lista de ordenes entregadas");
+    }
+    return res.status(200).json(data);
+  });
+})
+router.get("/:id", (req, res) => {
+  const orderId = req.params.id;
+  const qgetOrders = "SELECT * FROM orders JOIN clients ON orders.client_id = clients.idclients JOIN devices ON orders.device_id = devices.iddevices JOIN brands ON devices.brand_id = brands.brandid JOIN types ON devices.type_id = types.typeid JOIN branches ON orders.branches_id = branches.idbranches JOIN states ON orders.state_id = states.idstates JOIN grupousuarios ON orders.users_id = grupousuarios.idgrupousuarios WHERE order_id = ?";
+  db.query(qgetOrders,[orderId], (err, data) => {
+    if (err) {
+      console.log(err);
+      return res.status(400).json("error al obtener la orden");
     }
     return res.status(200).json(data);
   });
