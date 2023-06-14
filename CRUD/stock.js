@@ -4,21 +4,10 @@ const router = express.Router();
 // Agregar base de datos
 const db = require('../database/dbConfig');
 /*-----------------CREACION DE SISTEMA DE STOCK----------------- */
-/*
-ID
-Repuesto => creacion de sistema de repuestos por nombre
-Cantidad
-Precio de compra en USD
-Proveedor => creacion de sistema de proveedores
-        nombre
-        numero de telefono
-        direccion
-Fecha de ingreso => default | new Date()
-*/
 // create
 router.post("/", (req, res) => {
     const { repuesto_id, cantidad, precio_compra, proveedor_id, fecha_compra, cantidad_limite, branch_id } = req.body;
-    const qCreateStock = "INSERT INTO stock (repuesto_id, cantidad, precio_compra, proveedor_id, fecha_compra, cantidad_limite) VALUES (?, ?, ?, ?, ?, ?)";
+    const qCreateStock = "INSERT INTO stock (repuesto_id, cantidad, precio_compra, proveedor_id, fecha_compra, cantidad_limite, branch_id) VALUES (?, ?, ?, ?, ?, ?, ?)";
   
     const values = [
       repuesto_id, 
@@ -53,15 +42,16 @@ router.post("/", (req, res) => {
   // update
   router.put("/:id", (req, res) => {
     const stockId = req.params.id;
-    const qupdateStock = "UPDATE stock SET `repuesto_id` = ?, `cantidad` = ?, `precio_compra` = ?, `proveedor_id` = ?, `fecha_compra` = ? WHERE idstock = ?";
-    const { repuesto_id, cantidad, precio_compra, proveedor_id, fecha_compra } = req.body;
-  
+    const qupdateStock = "UPDATE stock SET `repuesto_id` = ?, `cantidad` = ?, `precio_compra` = ?, `proveedor_id` = ?, `fecha_compra` = ?, `cantidad_limite` = ? WHERE idstock = ?";
+    
+    const { repuesto_id, cantidad, precio_compra, proveedor_id, fecha_compra, cantidad_limite } = req.body;
     const values = [
       repuesto_id, 
       cantidad, 
       precio_compra, 
       proveedor_id, 
       fecha_compra, 
+      cantidad_limite
     ]
   
     db.query(qupdateStock, [...values,stockId], (err, data) => {
