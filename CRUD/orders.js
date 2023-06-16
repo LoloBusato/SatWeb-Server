@@ -75,7 +75,7 @@ router.get("/:id", (req, res) => {
 router.put("/:id", (req, res) => {
   const orderId = req.params.id;
 
-  const { accesorios, branches_id, device_id, password, problem, serial, state_id, users_id } = req.body;
+  const { accesorios, branches_id, device_id, password, problem, serial, state_id, users_id, device_color } = req.body;
 
   const values = [
     device_id, 
@@ -86,11 +86,10 @@ router.put("/:id", (req, res) => {
     accesorios, 
     serial, 
     users_id,
+    device_color
   ]
 
-  console.log(values)
-
-  const qupdateOrder = "UPDATE orders SET `device_id` = ?, `branches_id` = ?,  `state_id` = ?, `problem` = ?, `password` = ?, `accesorios` = ?, `serial` = ?, `users_id` = ? WHERE order_id = ?";
+  const qupdateOrder = "UPDATE orders SET `device_id` = ?, `branches_id` = ?,  `state_id` = ?, `problem` = ?, `password` = ?, `accesorios` = ?, `serial` = ?, `users_id` = ?, `device_color` = ? WHERE order_id = ?";
 
   db.query(qupdateOrder, [...values,orderId], (err, data) => {
     if (err) return res.status(400).send(err);
