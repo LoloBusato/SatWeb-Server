@@ -65,11 +65,6 @@ router.post('/', async (req, res) => {
     const clientId = req.params.id;
     const { name, surname, email, instagram, phone, postal } = req.body;
   
-    const qClient = 'SELECT * FROM Clients WHERE (email = ? or instagram = ? or phone = ?)';
-  
-    const newEmail = email === "" ? "1" : email;
-    const newIg = instagram === "" ? "1" : instagram;
-    const newPhone = phone === "" ? "1" : phone;
   
     const values = [
       name,
@@ -77,28 +72,14 @@ router.post('/', async (req, res) => {
       email,
       instagram,
       phone,
+      postal
     ]
-  
-    const valuesCheck = [
-      newEmail,
-      newIg,
-      newPhone,
-    ]
-  
-    db.query(qClient, valuesCheck, (err, data) => {
-      if (err) {
-        return res.status(400).send(err);
-      }
-      if(data.length > 1){
-        return res.status(400).send("Este cliente ya existe");
-      } else {
-        const qupdateClient = "UPDATE clients SET `name` = ?, `surname` = ?, `email` = ?, `instagram` = ?, `phone` = ?, `postal` = ? WHERE idclients = ?";
-        db.query(qupdateClient, [...values, postal, clientId], (err, data) => {
-          if (err) return res.status(400).send(err);
-          return res.status(200).json(data);
-        }); 
-      }
-    });
+    const qupdateClient = "UPDATE clients SET `name` = ?, `surname` = ?, `email` = ?, `instagram` = ?, `phone` = ?, `postal` = ? WHERE idclients = ?";
+    
+    db.query(qupdateClient, [...values, clientId], (err, data) => {
+      if (err) return res.status(400).send(err);
+      return res.status(200).json(data);
+    }); 
   })
   // delete
   router.delete("/:id", (req, res) => {
