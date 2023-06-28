@@ -31,7 +31,7 @@ router.post('/', async (req, res) => {
   });
   // read
   router.get("/", (req, res) => {
-    const qgetBrands = "SELECT * FROM brands";
+    const qgetBrands = "SELECT * FROM brands ORDER BY brand";
     db.query(qgetBrands, (err, data) => {
       if (err) {
         console.log(err);

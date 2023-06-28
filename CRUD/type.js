@@ -31,7 +31,7 @@ router.post('/', async (req, res) => {
   });
   // read
   router.get("/", (req, res) => {
-    const qgetTypes = "SELECT * FROM types";
+    const qgetTypes = "SELECT * FROM types ORDER BY type";
     db.query(qgetTypes, (err, data) => {
       if (err) {
         console.log(err);

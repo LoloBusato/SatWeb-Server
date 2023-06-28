@@ -32,7 +32,7 @@ router.post('/', async (req, res) => {
   });
   // read
   router.get("/", (req, res) => {
-    const qgetCategoriest = "SELECT * FROM movcategories";
+    const qgetCategoriest = "SELECT * FROM movcategories ORDER BY categories";
     db.query(qgetCategoriest, (err, data) => {
       if (err) {
         console.log(err);
@@ -42,7 +42,7 @@ router.post('/', async (req, res) => {
     });
   })
   router.get("/:nombre", (req, res) => {
-    const qgetCatId = "SELECT idmovcategories FROM movcategories WHERE categories = ? ";
+    const qgetCatId = "SELECT idmovcategories FROM movcategories WHERE categories = ?";
     const catName = req.params.nombre;
 
     db.query(qgetCatId, [catName], (err, data) => {

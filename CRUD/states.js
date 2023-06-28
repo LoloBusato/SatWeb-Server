@@ -30,7 +30,7 @@ router.post('/', async (req, res) => {
   });
   // read
   router.get("/", (req, res) => {
-    const qgetStates = "SELECT * FROM states";
+    const qgetStates = "SELECT * FROM states ORDER BY state";
     db.query(qgetStates, (err, data) => {
       if (err) {
         console.log(err);

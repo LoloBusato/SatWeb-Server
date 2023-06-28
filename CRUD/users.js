@@ -32,7 +32,7 @@ router.post("/", (req, res) => {
 })
 // read
 router.get("/", (req, res) => {
-  const qgetUsers = "SELECT * FROM users JOIN branches ON users.branch_id = branches.idbranches JOIN grupousuarios ON users.grupos_id = grupousuarios.idgrupousuarios";
+  const qgetUsers = "SELECT * FROM users JOIN branches ON users.branch_id = branches.idbranches JOIN grupousuarios ON users.grupos_id = grupousuarios.idgrupousuarios ORDER BY username";
   db.query(qgetUsers, (err, data) => {
     if (err) {
       console.log(err);

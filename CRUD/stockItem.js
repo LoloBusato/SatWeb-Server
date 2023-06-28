@@ -19,7 +19,7 @@ router.post("/", (req, res) => {
   // read
   router.get("/", (req, res) => {
     console.log("Repuestos pedidos")
-    const qgetItem = "SELECT * FROM repuestos";
+    const qgetItem = "SELECT * FROM repuestos ORDER BY repuesto";
     db.query(qgetItem, (err, result) => {
       if (err) {
         console.error(err);

@@ -51,7 +51,7 @@ router.post('/', async (req, res) => {
   });
   // read
   router.get("/", (req, res) => {
-    const qgetClients = "SELECT * FROM clients";
+    const qgetClients = "SELECT * FROM clients ORDER BY name";
     db.query(qgetClients, (err, data) => {
       if (err) {
         console.log(err);

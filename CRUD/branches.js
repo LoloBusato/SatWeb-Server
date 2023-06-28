@@ -37,7 +37,7 @@ router.post('/', async (req, res) => {
   });
   // read
 router.get("/", (req, res) => {
-    const qgetBranches = "SELECT * FROM branches";
+    const qgetBranches = "SELECT * FROM branches ORDER BY idbranches";
     db.query(qgetBranches, (err, data) => {
       if (err) {
         console.log(err);

@@ -12,7 +12,6 @@ router.post("/", (req, res) => {
       telefono, 
       direccion
     ]
-    console.log(values)
   
     const qCreateSupplier = "INSERT INTO proveedores (nombre, telefono, direccion) VALUES (?, ?, ?)";
     db.query(qCreateSupplier, values, (err, data) => {
@@ -25,7 +24,7 @@ router.post("/", (req, res) => {
   })
   // read
   router.get("/", (req, res) => {
-    const qgetSupplier = `SELECT * FROM proveedores`;
+    const qgetSupplier = `SELECT * FROM proveedores ORDER BY nombre`;
     db.query(qgetSupplier, (err, result) => {
       if (err) {
         console.error(err);

@@ -20,7 +20,7 @@ router.post("/", (req, res) => {
 })
 // read
 router.get("/", (req, res) => {
-  const qgetUsers = "SELECT * FROM grupousuarios";
+  const qgetUsers = "SELECT * FROM grupousuarios ORDER BY grupo";
   db.query(qgetUsers, (err, data) => {
     if (err) {
       console.log(err);

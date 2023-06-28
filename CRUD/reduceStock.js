@@ -39,7 +39,7 @@ router.post("/", (req, res) => {
   
   })// read
   router.get("/", (req, res) => {
-    const qgetStock = "SELECT idreducestock, orderid, idstock, cantidad, repuesto, precio_compra, nombre, username, reducestock.date  FROM reducestock JOIN users ON reducestock.userid = users.idusers JOIN stock ON reducestock.stockid = stock.idstock JOIN repuestos ON stock.repuesto_id = repuestos.idrepuestos JOIN proveedores ON stock.proveedor_id = proveedores.idproveedores;";
+    const qgetStock = "SELECT idreducestock, orderid, idstock, cantidad, repuesto, precio_compra, nombre, username, reducestock.date  FROM reducestock JOIN users ON reducestock.userid = users.idusers JOIN stock ON reducestock.stockid = stock.idstock JOIN repuestos ON stock.repuesto_id = repuestos.idrepuestos JOIN proveedores ON stock.proveedor_id = proveedores.idproveedores ORDER BY STR_TO_DATE(reducestock.date, '%d/%m/%y') DESC";
     db.query(qgetStock, (err, data) => {
       if (err) {
         console.log(err);
