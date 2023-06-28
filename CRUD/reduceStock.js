@@ -8,25 +8,14 @@ router.post("/", (req, res) => {
     const qInsertReduceStock = "INSERT INTO reducestock (orderid, userid, stockid, date) VALUES (?, ?, ?, ?)";
     const qupdateStock = "UPDATE stock SET `cantidad` = ? WHERE idstock = ?";
   
-    const { orderId, userId, stockId, cantidad } = req.body;
+    const { orderId, userId, stockId, cantidad, fecha } = req.body;
     // Obtener la fecha y hora actual
-    const currentDate = new Date();
-  
-    // Obtener los componentes de la fecha y hora
-    const day = currentDate.getDate(); // Día del mes (1-31)
-    const month = currentDate.getMonth() + 1; // Mes (0-11). Sumamos 1 porque los meses se indexan desde 0.
-    const year = currentDate.getFullYear(); // Año (ej. 2023)
-    const hour = currentDate.getHours(); // Hora (0-23)
-    const minutes = currentDate.getMinutes(); // Minutos (0-59)
-  
-    // Crear una cadena de texto con el formato deseado
-    const newDate = `${day}/${month}/${year} ${hour}:${minutes}`;
   
     const values = [
       orderId,
       userId,
       stockId,
-      newDate,
+      fecha,
     ]
     db.query(qupdateStock, [cantidad,stockId], (err, data) => {
       if (err) return res.status(400).send(err);

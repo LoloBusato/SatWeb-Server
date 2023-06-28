@@ -6,13 +6,7 @@ const db = require('../database/dbConfig');
 /*-----------------CREACION DE ORDENES DE TRABAJO--------------- */
 // create
 router.post("/", (req, res) => {
-  const { accesorios, branches_id, client_id, device_id, device_color, password, problem, serial, state_id, users_id } = req.body;
-
-  const fechaActual = new Date();
-  const anio = (fechaActual.getFullYear()).toString().slice(-2);
-  const mes = ('0' + (fechaActual.getMonth() + 1)).slice(-2);
-  const dia = ('0' + fechaActual.getDate()).slice(-2);
-  const created_at = `${dia}/${mes}/${anio}`;
+  const { accesorios, branches_id, client_id, device_id, device_color, password, problem, serial, state_id, users_id, created_at } = req.body;
 
   const values = [
     client_id, 
