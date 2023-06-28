@@ -7,18 +7,8 @@ const db = require('../database/dbConfig');
 // CRUD de mensajes
 // create
 router.post('/', async (req, res) => {
-    const { username, message, orderId } = req.body;
-  
-    const fechaActual = new Date();
-  
-    const dia = fechaActual.getDate().toString().padStart(2, '0');
-    const mes = (fechaActual.getMonth() + 1).toString().padStart(2, '0');
-    const anio = fechaActual.getFullYear().toString();
-    const hora = fechaActual.getHours().toString().padStart(2, '0');
-    const minutos = fechaActual.getMinutes().toString().padStart(2, '0');
-  
-    const created_at = `${dia}/${mes}/${anio} ${hora}:${minutos}`;
-  
+    const { username, message, orderId, created_at } = req.body;
+      
     const values = [
       message,
       username,
