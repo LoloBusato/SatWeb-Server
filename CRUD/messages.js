@@ -27,7 +27,7 @@ router.post('/', async (req, res) => {
   // read
   router.get("/:id", (req, res) => {
     const orderId = req.params.id;
-    const qgetNotes = "SELECT * FROM messages WHERE orderId = 6866 ORDER BY STR_TO_DATE(created_at, '%d/%m/%Y %H:%i:%s') ASC";
+    const qgetNotes = "SELECT * FROM messages WHERE orderId = ? ORDER BY STR_TO_DATE(created_at, '%d/%m/%Y %H:%i:%s') ASC";
     db.query(qgetNotes, [orderId], (err, data) => {
       if (err) {
         console.log(err);
