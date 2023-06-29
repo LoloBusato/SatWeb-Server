@@ -25,7 +25,7 @@ router.post("/", (req, res) => {
           console.log("error: ", err);
           return res.send(err);
         }
-        return res.status(200).send("Usuario creado con exito")
+        return res.status(200).send(data)
       })
     }
   });
