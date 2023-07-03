@@ -30,11 +30,11 @@ router.post("/", (req, res) => {
   // read
   router.get("/:id", (req, res) => {
     const branchId = req.params.id;
-    const qgetStock = "SELECT * FROM stock JOIN repuestos ON stock.repuesto_id = repuestos.idrepuestos JOIN proveedores ON stock.proveedor_id = proveedores.idproveedores WHERE branch_id = ? ORDER BY repuesto";
+    const qgetStock = "SELECT * FROM stock JOIN repuestos ON stock.repuesto_id = repuestos.idrepuestos JOIN proveedores ON stock.proveedor_id = proveedores.idproveedores JOIN stockbranch ON stock.idstock = stockbranch.stock_id WHERE stockbranch.branch_id = ? ORDER BY repuesto";
     db.query(qgetStock, [branchId], (err, data) => {
       if (err) {
         console.log(err);
-        return res.status(400).json("error al obtener la lista de Stock");
+        return res.status(400).json(err);
       }
       return res.status(200).json(data);
     });
