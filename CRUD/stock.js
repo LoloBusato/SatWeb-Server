@@ -18,13 +18,28 @@ router.post("/", (req, res) => {
       cantidad_limite,
       branch_id
     ]
+    
+    const qDistributeStock = "INSERT INTO stockbranch (stock_id, branch_id, cantidad_branch, cantidad_restante) VALUES (?, ?, ?, ?)"
   
     db.query(qCreateStock, values, (err, data) => {
       if (err) {
         console.log("error: ", err);
         return res.status(400).send(err);
       }
-      return res.status(200).send(data);
+      const stockId = data.insertId
+      const valuesDistribute = [
+        stockId,
+        branch_id,
+        cantidad,
+        cantidad
+      ]
+      db.query(qDistributeStock, valuesDistribute, (err, data) => {
+        if (err) {
+          console.log("error: ", err);
+          return res.status(400).send(err);
+        }
+        return res.status(200).send(stockId);
+      }); 
     });    
   })
   // read
