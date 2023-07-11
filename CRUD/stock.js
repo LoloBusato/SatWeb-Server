@@ -85,6 +85,38 @@ router.post("/", (req, res) => {
       return res.status(200).json(data);
     });
   })
+
+  router.put("/distribute", (req, res) => {
+    const stockId = req.params.id;
+    const { arraySucursales } = req.body;
+
+    const STOCKID = 0
+    const BRANCHID = 1
+    const CANTIDAD = 2
+
+    const query = `
+      INSERT INTO stockbranch (stock_id, branch_id, cantidad_branch, cantidad_restante)
+      VALUES (?, ?, ?, ?)
+      ON DUPLICATE KEY UPDATE cantidad_branch = cantidad_branch + ?, cantidad_restante = cantidad_restante + ?
+    `;
+
+    arraySucursales.forEach(element => {
+      const values = [
+        element[STOCKID],
+        element[BRANCHID],
+        element[CANTIDAD],
+        element[CANTIDAD],
+        element[CANTIDAD],
+        element[CANTIDAD],
+      ]
+
+      db.query(query, values, (err, data) => {
+        if (err) return res.status(400).send(err);
+        console.log(data);
+      });
+    });
+    return res.status(200).send('Actualizados')
+  })
   // delete
   router.delete("/:id", (req, res) => {
     const stockId = req.params.id;
