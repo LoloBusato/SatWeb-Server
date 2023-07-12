@@ -86,8 +86,7 @@ router.post("/", (req, res) => {
     });
   })
 
-  router.put("/distribute", (req, res) => {
-    const stockId = req.params.id;
+  router.put("/distribute/:id", (req, res) => {
     const { arraySucursales } = req.body;
 
     const STOCKID = 0
@@ -112,7 +111,6 @@ router.post("/", (req, res) => {
 
       db.query(query, values, (err, data) => {
         if (err) return res.status(400).send(err);
-        console.log(data);
       });
     });
     return res.status(200).send('Actualizados')
