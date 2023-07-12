@@ -6,26 +6,28 @@ const db = require('../database/dbConfig');
 /*-----------------CREACION DE SISTEMA DE REPUESTOS----------------- */
 // create
 router.post("/", (req, res) => {
-    const { repuesto } = req.body;
-    const qCreateItem = "INSERT INTO repuestos (repuesto) VALUES (?)";
-    db.query(qCreateItem, [repuesto], (err, data) => {
+    const { repuesto, cantidad_limite } = req.body;
+    const values = [
+      repuesto,
+      cantidad_limite
+    ]
+    const qCreateItem = "INSERT INTO repuestos (repuesto, cantidad_limite) VALUES (?, ?)";
+    db.query(qCreateItem, values, (err, data) => {
       if (err) {
         console.log("error: ", err);
         return res.status(400).send("No se pudo agregar el repuesto.");
       }
-      return res.status(200).send("Repuesto agregado correctamente.");
+      return res.status(200).send(data);
     });    
   })
   // read
   router.get("/", (req, res) => {
-    console.log("Repuestos pedidos")
     const qgetItem = "SELECT * FROM repuestos ORDER BY repuesto";
     db.query(qgetItem, (err, result) => {
       if (err) {
         console.error(err);
         return res.status(500).send('Error al obtener la lista de repuestos');
       } else {
-        console.log("Repuestos encontrados", result)
         return res.status(200).send(result);
       }
     });
@@ -33,10 +35,14 @@ router.post("/", (req, res) => {
   // update
   router.put("/:id", (req, res) => {
     const itemId = req.params.id;
-    const qupdateItem = "UPDATE repuestos SET `repuesto` = ? WHERE idrepuestos = ?";
-    const { repuesto } = req.body;
+    const qupdateItem = "UPDATE repuestos SET `repuesto` = ?, `cantidad_limite` = ? WHERE idrepuestos = ?";
+    const { repuesto, cantidad_limite } = req.body;
+    const values = [
+      repuesto,
+      cantidad_limite
+    ]
     
-    db.query(qupdateItem, [repuesto,itemId], (err, data) => {
+    db.query(qupdateItem, [...values,itemId], (err, data) => {
       if (err) return res.status(400).send(err);
       return res.status(200).json(data);
     });
