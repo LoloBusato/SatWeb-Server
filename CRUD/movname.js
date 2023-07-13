@@ -40,24 +40,10 @@ router.post('/', async (req, res) => {
       return res.status(200).json(data);
     });
   })
-  // update
-  router.put("/:id", (req, res) => {
-    const moveId = req.params.id;
-    const { accountId, movCategoriesId, userId, movement, valueUsd, valuePesos, valueTrans, valueMp } = req.body;
-  
-    const values = [
-
-    ]
-    const qupdateMovement = "UPDATE movements SET `accountId` = ?, `movCategoriesId` = ?, `userId` = ?, `movement` = ?, `valueUsd` = ?, `valuePesos` = ?, `valueTrans` = ?, `valueMp` = ? WHERE idmovements = ?";
-    db.query(qupdateMovement, [...values, moveId], (err, data) => {
-        if (err) return res.status(400).send(err);
-        return res.status(200).json(data);
-    }); 
-  })
   // delete
   router.delete("/:id", (req, res) => {
     const moveId = req.params.id;
-    const qdeleteMovement = " DELETE FROM movements WHERE idmovements = ? ";
+    const qdeleteMovement = " DELETE FROM movname WHERE idmovname = ? ";
   
     db.query(qdeleteMovement, [moveId], (err, data) => {
       if (err) return res.status(400).send(err);
