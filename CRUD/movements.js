@@ -50,15 +50,5 @@ router.post('/', async (req, res) => {
         return res.status(200).json(data);
     }); 
   })
-  // delete
-  router.delete("/:id", (req, res) => {
-    const moveId = req.params.id;
-    const qdeleteMovement = " DELETE FROM movements WHERE idmovements = ? ";
-  
-    db.query(qdeleteMovement, [moveId], (err, data) => {
-      if (err) return res.status(400).send(err);
-      return res.status(200).json(data);
-    });
-  })
 
   module.exports = router
