@@ -90,6 +90,19 @@ router.put("/:id", (req, res) => {
     return res.status(200).json(data);
   });
 })
+// update
+router.put("/finalizar/:id", (req, res) => {
+  const orderId = req.params.id;
+
+  const { fecha } = req.body;
+
+  const qupdateOrder = "UPDATE orders SET `returned_at` = ?, `state_id` = 6, `users_id` = 18 WHERE order_id = ?";
+
+  db.query(qupdateOrder, [fecha, orderId], (err, data) => {
+    if (err) return res.status(400).send(err);
+    return res.status(200).json(data);
+  });
+})
 // delete
 router.delete("/:id", (req, res) => {
   const orderId = req.params.id;
