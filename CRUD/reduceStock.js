@@ -25,6 +25,16 @@ router.post("/", (req, res) => {
   });
 })
 // read
+router.get("/", (req, res) => {
+  const qgetStock = "SELECT * FROM reducestock JOIN users ON reducestock.userid = users.idusers JOIN stockbranch ON reducestock.stockbranch_id = stockbranch.stockbranchid JOIN stock ON stockbranch.stock_id = stock.idstock JOIN repuestos ON stock.repuesto_id = repuestos.idrepuestos JOIN proveedores ON stock.proveedor_id = proveedores.idproveedores ORDER BY STR_TO_DATE(reducestock.date, '%d/%m/%y') DESC;";
+  db.query(qgetStock, (err, data) => {
+    if (err) {
+      return res.status(400).json(err);
+    }
+    return res.status(200).json(data);
+  });
+})
+// read
 router.get("/:id", (req, res) => {
   const stockId = req.params.id;
   const qgetStock = "SELECT * FROM reducestock JOIN users ON reducestock.userid = users.idusers JOIN stockbranch ON reducestock.stockbranch_id = stockbranch.stockbranchid JOIN stock ON stockbranch.stock_id = stock.idstock JOIN repuestos ON stock.repuesto_id = repuestos.idrepuestos JOIN proveedores ON stock.proveedor_id = proveedores.idproveedores WHERE orderid = ? ORDER BY STR_TO_DATE(reducestock.date, '%d/%m/%y') DESC;";
