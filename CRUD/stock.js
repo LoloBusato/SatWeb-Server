@@ -38,7 +38,7 @@ router.post("/", (req, res) => {
           console.log("error: ", err);
           return res.status(400).send(err);
         }
-        return res.status(200).send(stockId);
+        return res.status(200).send({stockId: stockId});
       }); 
     });    
   })
