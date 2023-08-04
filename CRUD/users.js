@@ -44,11 +44,15 @@ router.get("/", (req, res) => {
 // update
 router.put("/:id", (req, res) => {
   const userId = req.params.id;
-  const qupdateUser = "UPDATE users SET `username`= ?, `password`= ? WHERE idusers = ?";
+  const qupdateUser = "UPDATE users SET `username`= ?, `password`= ?, `grupos_id`= ?, `branch_id`= ? WHERE idusers = ?";
+
+  const [username, password, branchId, grupoId] = req.body
 
   const values = [
-    req.body.username,
-    req.body.password
+    username,
+    password,
+    grupoId,
+    branchId
   ];
 
   db.query(qupdateUser, [...values,userId], (err, data) => {
