@@ -39,16 +39,31 @@ router.post('/', async (req, res) => {
   // update
   router.put("/:id", (req, res) => {
     const moveId = req.params.id;
-    const { accountId, movCategoriesId, userId, movement, valueUsd, valuePesos, valueTrans, valueMp } = req.body;
-  
-    const values = [
 
-    ]
-    const qupdateMovement = "UPDATE movements SET `accountId` = ?, `movCategoriesId` = ?, `userId` = ?, `movement` = ?, `valueUsd` = ?, `valuePesos` = ?, `valueTrans` = ?, `valueMp` = ? WHERE idmovements = ?";
-    db.query(qupdateMovement, [...values, moveId], (err, data) => {
-        if (err) return res.status(400).send(err);
-        return res.status(200).json(data);
-    }); 
+    const { arrayInsert } = req.body;
+    const movCatId = 0
+    const unidades = 1
+    const movNameId = 2
+    const branch_id = 3
+    const values = arrayInsert.map(element => [element[movCatId], element[unidades], element[movNameId], element[branch_id]]);
+
+    const qDeleteMove = "DELETE FROM movements WHERE movname_id = ? AND movcategories_id IN (SELECT idmovcategories FROM movcategories WHERE categories IN ('Pesos', 'Dolares', 'Banco', 'MercadoPago', 'Encargado'));";
+    const qCreateMove = "INSERT INTO movements (movcategories_id, unidades, movname_id, branch_id) VALUES ?";
+
+    db.query(qDeleteMove, [moveId], (err, data) => {
+      if (err) {
+        console.log("error: ", err);
+        return res.status(400).send(err);
+      }
+      db.query(qCreateMove, [values], (err, data) => {
+        if (err) {
+          console.log("error: ", err);
+          return res.status(400).send(err);
+        }
+        return res.status(200).send(data);
+      });
+    });
+
   })
 
   module.exports = router
