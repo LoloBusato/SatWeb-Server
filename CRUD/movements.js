@@ -49,7 +49,6 @@ router.post('/', async (req, res) => {
 
     const qDeleteMove = "DELETE FROM movements WHERE movname_id = ? AND movcategories_id IN (SELECT idmovcategories FROM movcategories WHERE categories IN ('Pesos', 'Dolares', 'Banco', 'MercadoPago', 'Encargado'));";
     const qCreateMove = "INSERT INTO movements (movcategories_id, unidades, movname_id, branch_id) VALUES ?";
-
     db.query(qDeleteMove, [moveId], (err, data) => {
       if (err) {
         console.log("error: ", err);
@@ -63,7 +62,6 @@ router.post('/', async (req, res) => {
         return res.status(200).send(data);
       });
     });
-
   })
 
   module.exports = router
