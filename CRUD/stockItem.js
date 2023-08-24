@@ -6,23 +6,34 @@ const db = require('../database/dbConfig');
 /*-----------------CREACION DE SISTEMA DE REPUESTOS----------------- */
 // create
 router.post("/", (req, res) => {
-    const { repuesto, cantidad_limite } = req.body;
+    const { repuesto, cantidad_limite, array_modelos } = req.body;
     const values = [
       repuesto,
       cantidad_limite
     ]
+
+    const qCreateRepuestoModelo = "INSERT INTO repuestosdevices (repuestos_id, devices_id) VALUES ?"
     const qCreateItem = "INSERT INTO repuestos (repuesto, cantidad_limite) VALUES (?, ?)";
     db.query(qCreateItem, values, (err, data) => {
       if (err) {
         console.log("error: ", err);
         return res.status(400).send("No se pudo agregar el repuesto.");
       }
-      return res.status(200).send(data);
+      const repuestoId = data.insertId;
+      const insertarArrayModelos = array_modelos.map(modeloId => [repuestoId, modeloId]);
+      db.query(qCreateRepuestoModelo, [insertarArrayModelos], (err, result) => {
+        if (err) {
+          console.error(err);
+          return res.status(500).send('Error al insertar la conexion entre el repuesto y los modelos');
+        } else {
+          return res.status(200).send(result);
+        }
+      });
     });    
   })
   // read
   router.get("/", (req, res) => {
-    const qgetItem = "SELECT * FROM repuestos ORDER BY repuesto";
+    const qgetItem = "SELECT repuestos.*, GROUP_CONCAT(repuestosdevices.devices_id) AS modelos_asociados FROM `repuestos` LEFT JOIN `repuestosdevices` ON repuestos.idrepuestos = repuestosdevices.repuestos_id GROUP BY repuestos.idrepuestos ORDER BY repuesto";
     db.query(qgetItem, (err, result) => {
       if (err) {
         console.error(err);
