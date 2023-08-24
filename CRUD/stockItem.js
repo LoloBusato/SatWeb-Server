@@ -33,7 +33,25 @@ router.post("/", (req, res) => {
   })
   // read
   router.get("/", (req, res) => {
-    const qgetItem = "SELECT repuestos.*, GROUP_CONCAT(repuestosdevices.devices_id) AS modelos_asociados FROM `repuestos` LEFT JOIN `repuestosdevices` ON repuestos.idrepuestos = repuestosdevices.repuestos_id GROUP BY repuestos.idrepuestos ORDER BY repuesto";
+    const qgetItem = `
+    SELECT
+      repuestos.*,  
+      GROUP_CONCAT(repuestosdevices.devices_id) AS modelos_asociados,
+      GROUP_CONCAT(CONCAT(types.type, ' ', devices.model)) AS nombres_modelos
+    FROM
+      repuestos
+    LEFT JOIN
+      repuestosdevices ON repuestos.idrepuestos = repuestosdevices.repuestos_id
+    LEFT JOIN
+      devices ON repuestosdevices.devices_id = devices.iddevices
+    LEFT JOIN
+      types ON devices.type_id = types.typeid
+    LEFT JOIN
+      brands ON devices.brand_id = brands.brandid
+    GROUP BY
+      repuestos.idrepuestos
+    ORDER BY
+      repuestos.repuesto;`;
     db.query(qgetItem, (err, result) => {
       if (err) {
         console.error(err);
