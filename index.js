@@ -28,6 +28,8 @@ const reduceStockRoutes = require('./CRUD/reduceStock');
 const stockItemRoutes = require('./CRUD/stockItem');
 const supplierRoutes = require('./CRUD/supplier');
 const statesRoutes = require('./CRUD/states');
+
+const nombreRepuestos = require('./CRUD/nombreRepuestos');
 // Finanzas
 const categoriesRoutes = require('./CRUD/categories');
 const movementsRoutes = require('./CRUD/movements');
@@ -52,6 +54,7 @@ app.use('/reduceStock', reduceStockRoutes);
 app.use('/stockitem', stockItemRoutes);
 app.use('/supplier', supplierRoutes);
 app.use('/states', statesRoutes);
+app.use('/nombresRepuestos', nombreRepuestos);
 // Finanzas
 app.use('/movcategories', categoriesRoutes);
 app.use('/movements', movementsRoutes);
