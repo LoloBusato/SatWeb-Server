@@ -6,20 +6,24 @@ const db = require('../database/dbConfig');
 /*-----------------CREACION DE SISTEMA DE REPUESTOS----------------- */
 // create
 router.post("/", (req, res) => {
-    const { repuesto, cantidad_limite, array_modelos } = req.body;
+  //idrepuestos, repuesto, cantidad_limite, color_id, nombre_repuestos_id, calidad_repuestos_id
+    const { repuesto, nombre_repuestos_id, calidad_repuestos_id, colores_id, cantidad_limite, array_modelos } = req.body;
     const values = [
       repuesto,
-      cantidad_limite
+      cantidad_limite,
+      nombre_repuestos_id,
+      calidad_repuestos_id,
+      colores_id,
     ]
 
-    const qCreateRepuestoModelo = "INSERT INTO repuestosdevices (repuestos_id, devices_id) VALUES ?"
-    const qCreateItem = "INSERT INTO repuestos (repuesto, cantidad_limite) VALUES (?, ?)";
+    const qCreateItem = "INSERT INTO repuestos (repuesto, cantidad_limite, nombre_repuestos_id, calidad_repuestos_id, color_id) VALUES (?, ?, ?, ?, ?)";
     db.query(qCreateItem, values, (err, data) => {
       if (err) {
         console.log("error: ", err);
         return res.status(400).send("No se pudo agregar el repuesto.");
       }
       const repuestoId = data.insertId;
+      const qCreateRepuestoModelo = "INSERT INTO repuestosdevices (repuestos_id, devices_id) VALUES ?"
       const insertarArrayModelos = array_modelos.map(modeloId => [repuestoId, modeloId]);
       db.query(qCreateRepuestoModelo, [insertarArrayModelos], (err, result) => {
         if (err) {
