@@ -15,25 +15,14 @@ router.post('/', async (req, res) => {
       info,
     ]
   
-    const qBranch = 'SELECT * FROM branches WHERE branch = ?'
-    db.query(qBranch, [branch], (err, data) => {
+    const qCreateBranch = "INSERT INTO branches (branch, contact, info) VALUES (?, ?, ?)";
+    db.query(qCreateBranch, values, (err, data) => {
       if (err) {
         console.log("error: ", err);
-        return res.status(400).send(err);
+        return res.status(400).send("No se pudo agregar la nueva sucursal.");
       }
-      if(data.length > 0){
-        return res.status(400).send("Esa sucursal ya existe");
-      } else {
-        const qCreateBranch = "INSERT INTO branches (branch, contact, info) VALUES (?, ?, ?)";
-        db.query(qCreateBranch, values, (err, data) => {
-          if (err) {
-            console.log("error: ", err);
-            return res.status(400).send("No se pudo agregar la nueva sucursal.");
-          }
-          return res.status(200).send("La nueva sucursal se agregó correctamente.");
-        });    
-      }
-    });
+      return res.status(200).send("La nueva sucursal se agregó correctamente.");
+    });    
   });
   // read
 router.get("/", (req, res) => {

@@ -8,27 +8,15 @@ const db = require('../database/dbConfig');
 // create
 router.post('/', async (req, res) => {
     const { categories } = req.body;
-  
-    const qCategories = 'SELECT * FROM movcategories WHERE categories = ?'
-  
-    db.query(qCategories, [categories], (err, data) => {
+    const qCreateCategory = "INSERT INTO movcategories (categories) VALUES (?)";
+    
+    db.query(qCreateCategory, [categories], (err, result) => {
       if (err) {
         console.log("error: ", err);
-        return res.status(400).send(err);
+        return res.status(400).send("No se pudo agregar la categoria.");
       }
-      if(data.length > 0){
-        return res.status(200).send(data);
-      } else {
-        const qCreateCategory = "INSERT INTO movcategories (categories) VALUES (?)";
-        db.query(qCreateCategory, [categories], (err, result) => {
-          if (err) {
-            console.log("error: ", err);
-            return res.status(400).send("No se pudo agregar la categoria.");
-          }
-          return res.status(200).send(data);
-        });    
-      }
-    });
+      return res.status(200).send(data);
+    });    
   });
   // read
   router.get("/", (req, res) => {
@@ -57,23 +45,12 @@ router.post('/', async (req, res) => {
   router.put("/:id", (req, res) => {
     const categoriesId = req.params.id;
     const { categories } = req.body;
-  
-    const qCategories = 'SELECT * FROM movcategories WHERE categories = ?';
-  
-    db.query(qCategories, [categories], (err, data) => {
-      if (err) {
-        return res.status(400).send(err);
-      }
-      if(data.length > 1){
-        return res.status(400).send("Esta categoria ya existe");
-      } else {
-        const qupdateCategories = "UPDATE movcategories SET `categories` = ? WHERE idmovcategories = ?";
-        db.query(qupdateCategories, [categories, categoriesId], (err, data) => {
-          if (err) return res.status(400).send(err);
-          return res.status(200).json(data);
-        }); 
-      }
-    });
+ 
+    const qupdateCategories = "UPDATE movcategories SET `categories` = ? WHERE idmovcategories = ?";
+    db.query(qupdateCategories, [categories, categoriesId], (err, data) => {
+      if (err) return res.status(400).send(err);
+      return res.status(200).json(data);
+    }); 
   })
   // delete
   router.delete("/:id", (req, res) => {

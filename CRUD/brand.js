@@ -9,25 +9,14 @@ const db = require('../database/dbConfig');
 router.post('/', async (req, res) => {
     const { brand } = req.body;
   
-    const qBrand = 'SELECT * FROM brands WHERE brand = ?'
-    db.query(qBrand, [brand], (err, data) => {
+    const qCreateBrand = "INSERT INTO brands (brand) VALUES (?)";
+    db.query(qCreateBrand, [brand], (err, data) => {
       if (err) {
         console.log("error: ", err);
-        return res.status(400).send(err);
+        return res.status(400).send("No se pudo agregar la nueva marca.");
       }
-      if(data.length > 0){
-        return res.status(400).send("Esa marca ya existe");
-      } else {
-        const qCreateBrand = "INSERT INTO brands (brand) VALUES (?)";
-        db.query(qCreateBrand, [brand], (err, data) => {
-          if (err) {
-            console.log("error: ", err);
-            return res.status(400).send("No se pudo agregar la nueva marca.");
-          }
-          return res.status(200).send("La nueva marca se agregó correctamente.");
-        });    
-      }
-    }); 
+      return res.status(200).send("La nueva marca se agregó correctamente.");
+    });    
   });
   // read
   router.get("/", (req, res) => {

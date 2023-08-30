@@ -8,29 +8,19 @@ const db = require('../database/dbConfig');
 // create
 router.post('/', async (req, res) => {
     const { brandId, typeId, model } = req.body;
-    const qdevice = 'SELECT * FROM devices WHERE model = ?'
     const values = [
       brandId,
       typeId,
       model
     ]
-    db.query(qdevice, [model], (err, data) => {
+    
+    const q = "INSERT INTO devices (brand_id, type_id, model) VALUES (?, ?, ?)";
+    db.query(q, values, (err, data) => {
       if (err) {
         console.log("error: ", err);
         return res.status(400).send(err);
       }
-      if(data.length > 0){
-        return res.status(400).send("Equipo con ese modelo ya creado");
-      } else {
-        const q = "INSERT INTO devices (brand_id, type_id, model) VALUES (?, ?, ?)";
-        db.query(q, values, (err, data) => {
-          if (err) {
-            console.log("error: ", err);
-            return res.status(400).send(err);
-          }
-          return res.status(200).send(data);
-        });    
-      }
+      return res.status(200).send(data);
     });
   })
   // read
