@@ -51,7 +51,6 @@ router.post("/", (req, res) => {
     }
   })
 })
-
 // read
 router.get("/", (req, res) => {
   const qgetStock = "SELECT * FROM reducestock JOIN users ON reducestock.userid = users.idusers JOIN stockbranch ON reducestock.stockbranch_id = stockbranch.stockbranchid JOIN stock ON stockbranch.stock_id = stock.idstock JOIN repuestos ON stock.repuesto_id = repuestos.idrepuestos JOIN proveedores ON stock.proveedor_id = proveedores.idproveedores ORDER BY STR_TO_DATE(reducestock.date, '%d/%m/%y') DESC;";
@@ -75,19 +74,38 @@ router.get("/:id", (req, res) => {
 })
 //
 router.post("/delete", (req, res) => {
-  const qdeleteStock = "DELETE FROM reducestock WHERE idreducestock = ?";
+  db.beginTransaction(err => {
+    try {
+      const { cantidad, stockbranchid, stockReduceId } = req.body;
+      const qdeleteStock = "DELETE FROM reducestock WHERE idreducestock = ?";
+      const qupdateStock = "UPDATE stockbranch SET `cantidad_restante` = ? WHERE stockbranchid = ?";
+    
+      db.query(qupdateStock, [cantidad,stockbranchid], (err, data) => {
+        if (err) {
+          throw err
+        }
+        db.query(qdeleteStock, [stockReduceId], (err, data) => {
+          if (err) {
+            throw err
+          }
+        });
+      });      
 
-  const qupdateStock = "UPDATE stockbranch SET `cantidad_restante` = ? WHERE stockbranchid = ?";
-  const { cantidad, stockbranchid, stockReduceId } = req.body;
-
-  db.query(qupdateStock, [cantidad,stockbranchid], (err, data) => {
-    if (err) return res.status(400).send(err);
-
-    db.query(qdeleteStock, [stockReduceId], (err, data) => {
-      if (err) return res.status(400).send(err);
-      return res.status(200).json(data);
-    });
-  });
+      db.commit(err => {
+        if (err) {
+          return db.rollback(() => {
+            console.error('Error al hacer commit:', err);
+            return res.status(500).send('Error al realizar commit');
+          });
+        }
+      });
+    } catch (err) {
+      db.rollback(() => {
+        console.error('Error en la transacción:', err);
+        return res.status(500).send('Error en la transacción');
+      });
+    }
+  })
 })
 
 module.exports = router
