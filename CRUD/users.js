@@ -8,26 +8,15 @@ const db = require('../database/dbConfig');
 router.post("/", (req, res) => {
   const { username, password, branchId, grupoId } = req.body;
 
-  const qexist = 'SELECT * FROM users WHERE username = ?'
   const values = [username, password, branchId, grupoId]
   const qcreate = 'INSERT INTO users (username, password, branch_id, grupos_id) VALUES (?, ?, ?, ?)'
 
-  db.query(qexist, [username], (err, data) => {
+  db.query(qcreate, values, (err, data) => {
     if (err) {
       console.log("error: ", err);
       return res.send(err);
     }
-    if(data.length > 0){
-      return res.status(400).send("Usuario con ese nombre ya creado");
-    } else {
-      db.query(qcreate, values, (err, data) => {
-        if (err) {
-          console.log("error: ", err);
-          return res.send(err);
-        }
-        return res.status(200).send(data)
-      })
-    }
+    return res.status(200).send(data)
   });
 })
 // read
