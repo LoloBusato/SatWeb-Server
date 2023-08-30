@@ -8,25 +8,14 @@ const db = require('../database/dbConfig');
 router.post('/', async (req, res) => {
     const { state, color } = req.body;
   
-    const qState = 'SELECT * FROM states WHERE state = ?'
-    db.query(qState, [state, color], (err, data) => {
+    const qCreateState = "INSERT INTO states (state, color) VALUES (?, ?)";
+    db.query(qCreateState, [state, color], (err, data) => {
       if (err) {
         console.log("error: ", err);
-        return res.status(400).send(err);
+        return res.status(400).send("No se pudo agregar el estado.");
       }
-      if(data.length > 0){
-        return res.status(400).send("Ese estado ya existe");
-      } else {
-        const qCreateState = "INSERT INTO states (state, color) VALUES (?, ?)";
-        db.query(qCreateState, [state, color], (err, data) => {
-          if (err) {
-            console.log("error: ", err);
-            return res.status(400).send("No se pudo agregar el estado.");
-          }
-          return res.status(200).send("Estado agregado correctamente.");
-        });    
-      }
-    }); 
+      return res.status(200).send(data);
+    });    
   });
   // read
   router.get("/", (req, res) => {
