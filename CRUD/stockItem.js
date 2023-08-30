@@ -6,34 +6,62 @@ const db = require('../database/dbConfig');
 /*-----------------CREACION DE SISTEMA DE REPUESTOS----------------- */
 // create
 router.post("/", (req, res) => {
-  //idrepuestos, repuesto, cantidad_limite, color_id, nombre_repuestos_id, calidad_repuestos_id
-    const { repuesto, nombre_repuestos_id, calidad_repuestos_id, colores_id, cantidad_limite, array_modelos } = req.body;
-    const values = [
-      repuesto,
-      cantidad_limite,
-      nombre_repuestos_id,
-      calidad_repuestos_id,
-      colores_id,
-    ]
-
-    const qCreateItem = "INSERT INTO repuestos (repuesto, cantidad_limite, nombre_repuestos_id, calidad_repuestos_id, color_id) VALUES (?, ?, ?, ?, ?)";
-    db.query(qCreateItem, values, (err, data) => {
+    //idrepuestos, repuesto, cantidad_limite, color_id, nombre_repuestos_id, calidad_repuestos_id
+    db.beginTransaction(err => {
       if (err) {
-        console.log("error: ", err);
-        return res.status(400).send("No se pudo agregar el repuesto.");
+        console.error('Error al comenzar la transacción:', err);
+        return res.status(500).send('Error al iniciar la transacción');
       }
-      const repuestoId = data.insertId;
-      const qCreateRepuestoModelo = "INSERT INTO repuestosdevices (repuestos_id, devices_id) VALUES ?"
-      const insertarArrayModelos = array_modelos.map(modeloId => [repuestoId, modeloId]);
-      db.query(qCreateRepuestoModelo, [insertarArrayModelos], (err, result) => {
+      try {
+        
+      const { repuesto, nombre_repuestos_id, calidad_repuestos_id, colores_id, cantidad_limite, array_modelos } = req.body;
+      const values = [
+        repuesto,
+        cantidad_limite,
+        nombre_repuestos_id,
+        calidad_repuestos_id,
+        colores_id,
+      ];
+        
+      const qCreateItem = "INSERT INTO repuestos (repuesto, cantidad_limite, nombre_repuestos_id, calidad_repuestos_id, color_id) VALUES (?, ?, ?, ?, ?)";
+      
+      // Realiza la primera inserción
+      db.query(qCreateItem, values, (err, data) => {
         if (err) {
-          console.error(err);
-          return res.status(500).send('Error al insertar la conexion entre el repuesto y los modelos');
-        } else {
-          return res.status(200).send(result);
+          throw err
         }
+        
+        const repuestoId = data.insertId;
+        const qCreateRepuestoModelo = "INSERT INTO repuestosdevices (repuestos_id, devices_id) VALUES ?";
+        const insertarArrayModelos = array_modelos.map(modeloId => [repuestoId, modeloId]);
+        
+        // Realiza la segunda inserción
+        db.query(qCreateRepuestoModelo, [insertarArrayModelos], (err, result) => {
+          if (err) {
+            throw err
+          }
+    
+          // Si todo sale bien, realiza un commit
+          db.commit(err => {
+            if (err) {
+              return db.rollback(() => {
+                console.error('Error al hacer commit:', err);
+                return res.status(500).send('Error al realizar commit');
+              });
+            }
+
+            return res.status(200).send(result);
+          });
+        });
       });
-    });    
+      } catch (error) {
+        db.rollback(() => {
+          console.error('Error en la transacción:', err);
+          return res.status(500).send('Error en la transacción');
+        });
+      }
+    
+    }); 
   })
   // read
   router.get("/", (req, res) => {
@@ -67,18 +95,67 @@ router.post("/", (req, res) => {
   })
   // update
   router.put("/:id", (req, res) => {
-    const itemId = req.params.id;
-    const qupdateItem = "UPDATE repuestos SET `repuesto` = ?, `cantidad_limite` = ? WHERE idrepuestos = ?";
-    const { repuesto, cantidad_limite } = req.body;
-    const values = [
-      repuesto,
-      cantidad_limite
-    ]
-    
-    db.query(qupdateItem, [...values,itemId], (err, data) => {
-      if (err) return res.status(400).send(err);
-      return res.status(200).json(data);
-    });
+
+    db.beginTransaction(err => {
+      if (err) {
+        console.error('Error al comenzar la transacción:', err);
+        return res.status(500).send('Error al iniciar la transacción');
+      }
+      try {
+        //idrepuestos, repuesto, cantidad_limite, color_id, nombre_repuestos_id, calidad_repuestos_id
+        const repuestoId = req.params.id;
+
+        const { repuesto, cambiar_modelos, nombre_repuestos_id, calidad_repuestos_id, color_id, cantidad_limite, array_modelos } = req.body;
+        const values = [
+          repuesto,
+          cantidad_limite,
+          nombre_repuestos_id,
+          calidad_repuestos_id,
+          color_id,
+        ]
+
+        if (cambiar_modelos) {
+          const qdeleteAllRepuestoModelo = "DELETE FROM repuestosdevices WHERE repuestosdevices.repuestos_id = ?"
+          const qCreateRepuestoModelo = "INSERT INTO repuestosdevices (repuestos_id, devices_id) VALUES ?"
+          const insertarArrayModelos = array_modelos.map(modeloId => [repuestoId, modeloId]);
+          db.query(qdeleteAllRepuestoModelo, [repuestoId], (err, result) => {
+            if (err) {
+              throw err
+            } else {
+              db.query(qCreateRepuestoModelo, [insertarArrayModelos], (err, result) => {
+                if (err) {
+                  throw err
+                } 
+              });
+            }
+          });
+        }
+        const qupdateItem = "UPDATE repuestos SET `repuesto` = ?, `cantidad_limite` = ?, `nombre_repuestos_id` = ?, `calidad_repuestos_id` = ?, `color_id` = ? WHERE idrepuestos = ?";
+        db.query(qupdateItem, [...values,repuestoId], (err, data) => {
+          if (err) {
+            throw err
+          }
+        });
+      
+        // Si todo sale bien, realiza un commit
+        db.commit(err => {
+          if (err) {
+            return db.rollback(() => {
+              console.error('Error al hacer commit:', err);
+              return res.status(500).send('Error al realizar commit');
+            });
+          }
+
+          return res.status(200).send('Transaction completed successfully');
+        });
+
+      } catch (error) {
+        db.rollback(() => {
+          console.error('Error en la transacción:', err);
+          return res.status(500).send('Error en la transacción');
+        });
+      }
+    }); 
   })
   // delete
   router.delete("/:id", (req, res) => {
