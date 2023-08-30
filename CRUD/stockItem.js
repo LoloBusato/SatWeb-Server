@@ -54,13 +54,12 @@ router.post("/", (req, res) => {
           });
         });
       });
-      } catch (error) {
+      } catch (err) {
         db.rollback(() => {
           console.error('Error en la transacción:', err);
           return res.status(500).send('Error en la transacción');
         });
       }
-    
     }); 
   })
   // read
