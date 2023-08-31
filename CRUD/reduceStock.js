@@ -42,6 +42,7 @@ router.post("/", (req, res) => {
             return res.status(500).send('Error al realizar commit');
           });
         }
+        return res.status(200).json('Repuesto agregado con exito');
       });
     } catch (err) {
       db.rollback(() => {
@@ -98,6 +99,7 @@ router.post("/delete", (req, res) => {
             return res.status(500).send('Error al realizar commit');
           });
         }
+        return res.status(200).json('Repuesto eliminado con exito');
       });
     } catch (err) {
       db.rollback(() => {

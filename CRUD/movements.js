@@ -70,6 +70,7 @@ router.post('/', async (req, res) => {
               return res.status(500).send('Error al realizar commit');
             });
           }
+          return res.status(200).json('Movimineto actualizado con exito');
         });
       } catch (err) {
         db.rollback(() => {
