@@ -32,6 +32,7 @@ const statesRoutes = require('./CRUD/states');
 const colores = require('./CRUD/color');
 const calidadRepuestos = require('./CRUD/calidadRepuestos');
 const nombreRepuestos = require('./CRUD/nombreRepuestos');
+const almacenamientoRepuestos = require('./CRUD/almacenamientoRepuestos');
 // Finanzas
 const categoriesRoutes = require('./CRUD/categories');
 const movementsRoutes = require('./CRUD/movements');
@@ -59,6 +60,7 @@ app.use('/states', statesRoutes);
 
 app.use('/nombresRepuestos', nombreRepuestos);
 app.use('/calidadesRepuestos', calidadRepuestos);
+app.use('/almacenamientosRepuestos', almacenamientoRepuestos);
 app.use('/colores', colores);
 // Finanzas
 app.use('/movcategories', categoriesRoutes);

@@ -32,7 +32,7 @@ function createCRUDRoutes(config) {
 
     router.put(`/:id`, (req, res) => {
         const id = req.params.id;
-        const value = req.body[columnName];
+        const value = req.body[variableFront];
         const qUpdate = `UPDATE ${tableName} SET ${columnName} = ? WHERE ${idName} = ?`;
 
         db.query(qUpdate, [value, id], (err, data) => {
