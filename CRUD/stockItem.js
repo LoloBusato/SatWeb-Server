@@ -6,7 +6,7 @@ const db = require('../database/dbConfig');
 /*-----------------CREACION DE SISTEMA DE REPUESTOS----------------- */
 // create
 router.post("/", (req, res) => {
-    //idrepuestos, repuesto, cantidad_limite, color_id, nombre_repuestos_id, calidad_repuestos_id
+    //nombre_repuestos_id, calidad_repuestos_id, repuesto, color_id, cantidad_limite, venta, almacenamiento_repuestos_id, array_modelos
     db.beginTransaction(err => {
       if (err) {
         console.error('Error al comenzar la transacción:', err);
@@ -14,16 +14,17 @@ router.post("/", (req, res) => {
       }
       try {
         
-      const { repuesto, nombre_repuestos_id, calidad_repuestos_id, colores_id, cantidad_limite, array_modelos } = req.body;
+      const { repuesto, nombre_repuestos_id, calidad_repuestos_id, color_id, cantidad_limite, venta, almacenamiento_repuestos_id, array_modelos } = req.body;
       const values = [
         repuesto,
         cantidad_limite,
         nombre_repuestos_id,
         calidad_repuestos_id,
-        colores_id,
+        color_id,
+        almacenamiento_repuestos_id,
       ];
         
-      const qCreateItem = "INSERT INTO repuestos (repuesto, cantidad_limite, nombre_repuestos_id, calidad_repuestos_id, color_id) VALUES (?, ?, ?, ?, ?)";
+      const qCreateItem = "INSERT INTO repuestos (repuesto, cantidad_limite, nombre_repuestos_id, calidad_repuestos_id, color_id, venta, almacenamiento_repuestos_id) VALUES (?, ?, ?, ?, ?, ?, ?)";
       
       // Realiza la primera inserción
       db.query(qCreateItem, values, (err, data) => {
@@ -94,23 +95,24 @@ router.post("/", (req, res) => {
   })
   // update
   router.put("/:id", (req, res) => {
-
+    //almacenamiento_repuestos_id, array_modelos, calidad_repuestos_id, cambiar_modelos, cantidad_limite, color_id, modelos_asociados, nombre_repuestos_id, repuesto, venta
     db.beginTransaction(err => {
       if (err) {
         console.error('Error al comenzar la transacción:', err);
         return res.status(500).send('Error al iniciar la transacción');
       }
       try {
-        //idrepuestos, repuesto, cantidad_limite, color_id, nombre_repuestos_id, calidad_repuestos_id
         const repuestoId = req.params.id;
 
-        const { repuesto, cambiar_modelos, nombre_repuestos_id, calidad_repuestos_id, color_id, cantidad_limite, array_modelos } = req.body;
+        const { repuesto, cambiar_modelos, almacenamiento_repuestos_id, venta, nombre_repuestos_id, calidad_repuestos_id, color_id, cantidad_limite, array_modelos } = req.body;
         const values = [
           repuesto,
           cantidad_limite,
           nombre_repuestos_id,
           calidad_repuestos_id,
           color_id,
+          almacenamiento_repuestos_id,
+          venta,
         ]
 
         if (cambiar_modelos) {
@@ -129,7 +131,7 @@ router.post("/", (req, res) => {
             }
           });
         }
-        const qupdateItem = "UPDATE repuestos SET `repuesto` = ?, `cantidad_limite` = ?, `nombre_repuestos_id` = ?, `calidad_repuestos_id` = ?, `color_id` = ? WHERE idrepuestos = ?";
+        const qupdateItem = "UPDATE repuestos SET `repuesto` = ?, `cantidad_limite` = ?, `nombre_repuestos_id` = ?, `calidad_repuestos_id` = ?, `color_id` = ?, `almacenamiento_repuestos_id` = ?, `venta` = ? WHERE idrepuestos = ?";
         db.query(qupdateItem, [...values,repuestoId], (err, data) => {
           if (err) {
             throw err
