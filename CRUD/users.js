@@ -2,7 +2,7 @@ const express = require('express');
 const router = express.Router();
 
 // Agregar base de datos
-const db = require('../database/dbConfig');
+const pool = require('../database/dbConfig');
 // CRUD de usuarios
 // create
 router.post("/", (req, res) => {
@@ -11,24 +11,34 @@ router.post("/", (req, res) => {
   const values = [username, password, branchId, grupoId]
   const qcreate = 'INSERT INTO users (username, password, branch_id, grupos_id) VALUES (?, ?, ?, ?)'
 
-  db.query(qcreate, values, (err, data) => {
+  pool.getConnection((err, db) => {
     if (err) {
-      console.log("error: ", err);
-      return res.send(err);
+      return res.status(500).send(err);
     }
-    return res.status(200).send(data)
-  });
+    db.query(qcreate, values, (err, data) => {
+      db.release()
+      if (err) {
+        return res.send(err);
+      }
+      return res.status(200).send(data)
+    });
+  })
 })
 // read
 router.get("/", (req, res) => {
   const qgetUsers = "SELECT * FROM users JOIN branches ON users.branch_id = branches.idbranches JOIN grupousuarios ON users.grupos_id = grupousuarios.idgrupousuarios ORDER BY username";
-  db.query(qgetUsers, (err, data) => {
+  pool.getConnection((err, db) => {
     if (err) {
-      console.log(err);
-      return res.status(400).json(err);
+      return res.status(500).send(err);
     }
-    return res.status(200).json(data);
-  });
+    db.query(qgetUsers, (err, data) => {
+      db.release()
+      if (err) {
+        return res.status(500).send(err);
+      }
+      return res.status(200).json(data)
+    });
+  })
 })
 // update
 router.put("/:id", (req, res) => {
@@ -44,20 +54,31 @@ router.put("/:id", (req, res) => {
     branchId
   ];
 
-  db.query(qupdateUser, [...values,userId], (err, data) => {
-    if (err) return res.status(400).send(err);
-    return res.status(200).json(data);
-  });
+  pool.getConnection((err, db) => {
+    if (err) {
+      return res.status(500).send(err);
+    }
+    db.query(qupdateUser, [...values,userId], (err, data) => {
+      db.release()
+      if (err) return res.status(500).send(err);
+      return res.status(200).json(data)
+    });
+  })
 })
 // delete
 router.delete("/:id", (req, res) => {
   const userId = req.params.id;
   const qdeleteUser = " DELETE FROM users WHERE idusers = ? ";
 
-  db.query(qdeleteUser, [userId], (err, data) => {
-    if (err) return res.status(400).send(err);
-    return res.status(200).json(data);
-  });
+  pool.getConnection((err, db) => {
+    if (err) return res.status(500).send(err);
+    
+    db.query(qdeleteUser, [userId], (err, data) => {
+      db.release()
+      if (err) return res.status(500).send(err);
+      return res.status(200).json(data)
+    });
+  })
 })
 /* ------------------------------------------------------------- */
 module.exports = router

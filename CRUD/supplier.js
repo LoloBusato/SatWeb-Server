@@ -2,7 +2,7 @@ const express = require('express');
 const router = express.Router();
 
 // Agregar base de datos
-const db = require('../database/dbConfig');
+const pool = require('../database/dbConfig');
 /*-----------------CREACION DE SISTEMA DE PROVEEDORES----------------- */
 // create
 router.post("/", (req, res) => {
@@ -12,27 +12,32 @@ router.post("/", (req, res) => {
       telefono, 
       direccion
     ]
-  
     const qCreateSupplier = "INSERT INTO proveedores (nombre, telefono, direccion) VALUES (?, ?, ?)";
-    db.query(qCreateSupplier, values, (err, data) => {
-      if (err) {
-        console.log("error: ", err);
-        return res.status(400).send("No se pudo agregar el proveedor.");
-      }
-      return res.status(200).send("Proveedor agregado correctamente.");
-    });    
+    
+    
+    pool.getConnection((err, db) => {
+      if (err) return res.status(500).send(err);
+      
+      db.query(qCreateSupplier, values, (err, data) => {
+        db.release()
+        if (err) return res.status(500).send(err);
+        return res.status(200).json(data)
+      });
+    })
   })
   // read
   router.get("/", (req, res) => {
     const qgetSupplier = `SELECT * FROM proveedores ORDER BY nombre`;
-    db.query(qgetSupplier, (err, result) => {
-      if (err) {
-        console.error(err);
-        return res.status(500).send('Error al obtener la lista de proveedores');
-      } else {
-        return res.status(200).json(result);
-      }
-    });
+    
+    pool.getConnection((err, db) => {
+      if (err) return res.status(500).send(err);
+      
+      db.query(qgetSupplier, (err, data) => {
+        db.release()
+        if (err) return res.status(500).send(err);
+        return res.status(200).json(data)
+      });
+    })
   })
   // update
   router.put("/:id", (req, res) => {
@@ -45,20 +50,31 @@ router.post("/", (req, res) => {
       telefono, 
       direccion
     ]
-    db.query(qupdateSupplier, [...values,supplierId], (err, data) => {
-      if (err) return res.status(400).send(err);
-      return res.status(200).json(data);
-    });
+
+    pool.getConnection((err, db) => {
+      if (err) return res.status(500).send(err);
+      
+      db.query(qupdateSupplier, [...values,supplierId], (err, data) => {
+        db.release()
+        if (err) return res.status(500).send(err);
+        return res.status(200).json(data)
+      });
+    })
   })
   // delete
   router.delete("/:id", (req, res) => {
     const supplierId = req.params.id;
     const qdeleteSupplier = " DELETE FROM proveedores WHERE idproveedores = ? ";
   
-    db.query(qdeleteSupplier, [supplierId], (err, data) => {
-      if (err) return res.status(400).send(err);
-      return res.status(200).json(data);
-    });
+    pool.getConnection((err, db) => {
+      if (err) return res.status(500).send(err);
+      
+      db.query(qdeleteSupplier, [supplierId], (err, data) => {
+        db.release()
+        if (err) return res.status(500).send(err);
+        return res.status(200).json(data)
+      });
+    })
   })
   /* ------------------------------------------------------------- */
 

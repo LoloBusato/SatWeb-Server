@@ -9,24 +9,30 @@ router.post('/', async (req, res) => {
     const { state, color } = req.body;
   
     const qCreateState = "INSERT INTO states (state, color) VALUES (?, ?)";
-    db.query(qCreateState, [state, color], (err, data) => {
-      if (err) {
-        console.log("error: ", err);
-        return res.status(400).send("No se pudo agregar el estado.");
-      }
-      return res.status(200).send(data);
-    });    
+    
+    pool.getConnection((err, db) => {
+      if (err) return res.status(500).send(err);
+      
+      db.query(qCreateState, [state, color], (err, data) => {
+        db.release()
+        if (err) return res.status(500).send(err);
+        return res.status(200).json(data)
+      });
+    }) 
   });
   // read
   router.get("/", (req, res) => {
     const qgetStates = "SELECT * FROM states ORDER BY state";
-    db.query(qgetStates, (err, data) => {
-      if (err) {
-        console.log(err);
-        return res.status(400).json(err);
-      }
-      return res.status(200).json(data);
-    });
+    
+    pool.getConnection((err, db) => {
+      if (err) return res.status(500).send(err);
+      
+      db.query(qgetStates, (err, data) => {
+        db.release()
+        if (err) return res.status(500).send(err);
+        return res.status(200).json(data)
+      });
+    }) 
   })
   // update
   router.put("/:id", (req, res) => {
@@ -38,20 +44,30 @@ router.post('/', async (req, res) => {
       req.body.color,
     ];
   
-    db.query(qupdateState, [...values,stateId], (err, data) => {
-      if (err) return res.status(400).send(err);
-      return res.status(200).json(data);
-    });
+    pool.getConnection((err, db) => {
+      if (err) return res.status(500).send(err);
+      
+      db.query(qupdateState, [...values,stateId], (err, data) => {
+        db.release()
+        if (err) return res.status(500).send(err);
+        return res.status(200).json(data)
+      });
+    }) 
   })
   // delete
   router.delete("/:id", (req, res) => {
     const stateId = req.params.id;
     const qdeleteState = " DELETE FROM states WHERE idstates = ? ";
   
-    db.query(qdeleteState, [stateId], (err, data) => {
-      if (err) return res.status(400).send(err);
-      return res.status(200).json(data);
-    });
+    pool.getConnection((err, db) => {
+      if (err) return res.status(500).send(err);
+      
+      db.query(qdeleteState, [stateId], (err, data) => {
+        db.release()
+        if (err) return res.status(500).send(err);
+        return res.status(200).json(data)
+      });
+    })
   })
   /* -------------------------------------- */
 
