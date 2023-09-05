@@ -1,5 +1,5 @@
 const express = require('express');
-const db = require('../../database/dbConfig');
+const pool = require('../../database/dbConfig');
 
 function createCRUDRoutes(config) {
     const { tableName, columnName, idName, variableFront } = config;

@@ -2,7 +2,7 @@ const express = require('express');
 const router = express.Router();
 
 // Agregar base de datos
-const db = require('../database/dbConfig');
+const pool = require('../database/dbConfig');
 /*-----------------CREACION DE SUCURSALES--------------- */
 // CRUD de sucursales
 // create

@@ -3,7 +3,7 @@ const express = require('express');
 const router = express.Router();
 
 // Agregar base de datos
-const db = require('../database/dbConfig');
+const pool = require('../database/dbConfig');
 
 router.post("/", async (req, res) => {
     const { username, password } = req.body;
