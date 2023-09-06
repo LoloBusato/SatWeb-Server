@@ -49,7 +49,7 @@ router.post('/', async (req, res) => {
       db.beginTransaction(err => {
         try {
           const moveId = req.params.id;
-          const { arrayInsert } = req.body;
+          const { arrayInsert, movnameId, total } = req.body;
           const movCatId = 0
           const unidades = 1
           const movNameId = 2
@@ -65,6 +65,12 @@ router.post('/', async (req, res) => {
               if (err) throw err
             });
           });
+
+          const qUpdateMonto = "UPDATE movname SET `monto` = ? WHERE idmovname = ?"
+
+          db.query(qUpdateMonto, [total, movnameId], (err, data) => {
+            if (err) throw err
+          })
   
           db.commit(err => {
             if (err) {
