@@ -98,7 +98,7 @@ router.post("/", (req, res) => {
   // update
   router.put("/:id", (req, res) => {
     const stockId = req.params.id;
-    const qupdateStock = "UPDATE stock SET `repuesto_id` = ?, `cantidad` = ?, `precio_compra` = ?, `proveedor_id` = ?, `fecha_compra` = ?, `cantidad_limite` = ? WHERE idstock = ?";
+    const qupdateStock = "UPDATE stock SET `repuesto_id` = ?, `cantidad` = ?, `precio_compra` = ?, `proveedor_id` = ?, `fecha_compra` = ? WHERE idstock = ?";
     
     const { repuesto_id, cantidad, precio_compra, proveedor_id, fecha_compra, cantidad_limite } = req.body;
     const values = [
@@ -107,7 +107,6 @@ router.post("/", (req, res) => {
       precio_compra, 
       proveedor_id, 
       fecha_compra, 
-      cantidad_limite
     ]
 
     pool.getConnection((err, db) => {
