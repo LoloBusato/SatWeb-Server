@@ -21,8 +21,8 @@ router.post("/", (req, res) => {
           nombre_repuestos_id,
           calidad_repuestos_id,
           color_id,
+          venta,
           almacenamiento_repuestos_id,
-          venta
         ];
           
         const qCreateItem = "INSERT INTO repuestos (repuesto, cantidad_limite, nombre_repuestos_id, calidad_repuestos_id, color_id, venta, almacenamiento_repuestos_id) VALUES (?, ?, ?, ?, ?, ?, ?)";

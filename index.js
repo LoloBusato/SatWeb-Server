@@ -34,35 +34,38 @@ const almacenamientoRepuestos = require('./CRUD/almacenamientoRepuestos');
 const categoriesRoutes = require('./CRUD/categories');
 const movementsRoutes = require('./CRUD/movements');
 const movnameRoutes = require('./CRUD/movname');
+const cobrosRoutes = require('./CRUD/cobros')
 
 // Usar rutas CRUD
-app.use('/users/login', loginRoutes);
-app.use('/users', usersRoutes);
-app.use('/grupousuarios', grupoRoutes);
+app.use('/api/users/login', loginRoutes);
+app.use('/api/users', usersRoutes);
+app.use('/api/grupousuarios', grupoRoutes);
 // Ordenes
-app.use('/devices', devicesRoutes);
-app.use('/brand', brandRoutes);
-app.use('/type', typeRoutes);
-app.use('/branches', branchesRoutes);
-app.use('/clients', clientsRoutes);
-app.use('/orders/messages', messagesRoutes);
-app.use('/orders', ordersRoutes);
-app.use('/reasignOrder', reasignOrderRoutes);
+app.use('/api/devices', devicesRoutes);
+app.use('/api/brand', brandRoutes);
+app.use('/api/type', typeRoutes);
+app.use('/api/branches', branchesRoutes);
+app.use('/api/clients', clientsRoutes);
+app.use('/api/orders/messages', messagesRoutes);
+app.use('/api/orders', ordersRoutes);
+app.use('/api/reasignOrder', reasignOrderRoutes);
 // Stock
-app.use('/stock', stockRoutes);
-app.use('/reduceStock', reduceStockRoutes);
-app.use('/stockitem', stockItemRoutes);
-app.use('/supplier', supplierRoutes);
-app.use('/states', statesRoutes);
+app.use('/api/stock', stockRoutes);
+app.use('/api/reduceStock', reduceStockRoutes);
+app.use('/api/stockitem', stockItemRoutes);
+app.use('/api/supplier', supplierRoutes);
+app.use('/api/states', statesRoutes);
 
-app.use('/nombresRepuestos', nombreRepuestos);
-app.use('/calidadesRepuestos', calidadRepuestos);
-app.use('/almacenamientosRepuestos', almacenamientoRepuestos);
-app.use('/colores', colores);
+app.use('/api/nombresRepuestos', nombreRepuestos);
+app.use('/api/calidadesRepuestos', calidadRepuestos);
+app.use('/api/almacenamientosRepuestos', almacenamientoRepuestos);
+app.use('/api/colores', colores);
 // Finanzas
-app.use('/movcategories', categoriesRoutes);
-app.use('/movements', movementsRoutes);
-app.use('/movname', movnameRoutes);
+app.use('/api/movcategories', categoriesRoutes);
+app.use('/api/movements', movementsRoutes);
+app.use('/api/movname', movnameRoutes);
+app.use('/api/cobros', cobrosRoutes);
+
 
 
 // Agregar puerto de escucha
