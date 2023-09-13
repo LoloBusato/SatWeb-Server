@@ -33,7 +33,7 @@ router.post('/', async (req, res) => {
   // read
   router.get("/:id", (req, res) => {
     const moveId = req.params.id;
-    const qgetMovements = "SELECT idmovname, ingreso, egreso, operacion, monto, fecha, username FROM movname JOIN users ON userId = idusers WHERE movname.branch_id = ? ORDER BY STR_TO_DATE(fecha, '%d/%m/%y') DESC";
+    const qgetMovements = "SELECT idmovname, ingreso, egreso, operacion, monto, fecha, username, movname.order_id FROM movname JOIN users ON userId = idusers WHERE movname.branch_id = ? ORDER BY STR_TO_DATE(fecha, '%d/%m/%y') DESC";
     
     pool.getConnection((err, db) => {
       if (err) return res.status(500).send(err);
