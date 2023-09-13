@@ -27,7 +27,7 @@ router.post("/", (req, res) => {
           if (err) throw err
 
           db.query(qInsertReduceStock, values, (err, data) => {
-            throw err
+            if (err) throw err
           });
         });
   
