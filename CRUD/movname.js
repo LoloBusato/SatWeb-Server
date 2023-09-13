@@ -7,7 +7,7 @@ const pool = require('../database/dbConfig');
 // CRUD de movname
 // create
 router.post('/', async (req, res) => {
-    const { ingreso, egreso, operacion, monto, userId, branch_id, fecha } = req.body;
+    const { ingreso, egreso, operacion, monto, userId, branch_id, fecha, order_id } = req.body;
     const values = [
         ingreso, 
         egreso, 
@@ -15,9 +15,10 @@ router.post('/', async (req, res) => {
         monto, 
         fecha,
         userId,
-        branch_id
+        branch_id,
+        order_id
     ]
-    const qCreateMove= "INSERT INTO movname (ingreso, egreso, operacion, monto, fecha, userId, branch_id) VALUES (?, ?, ?, ?, ?, ?, ?)";
+    const qCreateMove= "INSERT INTO movname (ingreso, egreso, operacion, monto, fecha, userId, branch_id, order_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?)";
     
     pool.getConnection((err, db) => {
       if (err) return res.status(500).send(err);
