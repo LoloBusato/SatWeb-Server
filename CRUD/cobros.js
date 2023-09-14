@@ -6,9 +6,24 @@ const pool = require('../database/dbConfig');
 /*-----------------CREACION DE CLIENTES--------------- */
 // CRUD de clientes
   // read
-  router.get("/:id", (req, res) => {
+  router.get("/order/:id", (req, res) => {
     const cobroId = req.params.id;
     const qgetCobro = "SELECT * FROM cobros WHERE order_id = ? ORDER BY STR_TO_DATE(fecha, '%d/%m/%Y %H:%i:%s') DESC";
+
+    pool.getConnection((err, db) => {
+      if (err) return res.status(500).send(err);
+      
+      db.query(qgetCobro, [cobroId], (err, data) => {
+        db.release()
+        if (err) return res.status(500).send(err);
+        return res.status(200).json(data)
+      });
+    })
+  })
+  // read
+  router.get("/movname/:id", (req, res) => {
+    const cobroId = req.params.id;
+    const qgetCobro = "SELECT * FROM cobros WHERE movname_id = ? ORDER BY STR_TO_DATE(fecha, '%d/%m/%Y %H:%i:%s') DESC";
 
     pool.getConnection((err, db) => {
       if (err) return res.status(500).send(err);
