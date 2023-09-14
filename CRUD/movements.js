@@ -71,7 +71,7 @@ router.post('/', async (req, res) => {
             if (err) throw err
           })
 
-          const qUpdateCobro = "UPDATE cobros SET `pesos` = ?, `dolares` = ?, `banco` = ?, `mercado_pago` = ?, `encargado` = ?"
+          const qUpdateCobro = "UPDATE cobros SET `pesos` = ?, `dolares` = ?, `banco` = ?, `mercado_pago` = ?, `encargado` = ? WHERE `movname_id` = ?"
           db.query(qUpdateCobro, cobrosValues, (err, data) => {
             if (err) throw err
           })
