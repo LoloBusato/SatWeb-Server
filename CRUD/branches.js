@@ -7,13 +7,14 @@ const pool = require('../database/dbConfig');
 // CRUD de sucursales
 // create
 router.post('/', async (req, res) => {
-    const { branch, contact, info } = req.body;
+    const { branch, contact, info, ganancia } = req.body;
     const values = [
       branch,
       contact,
       info,
+      ganancia,
     ]
-    const qCreateBranch = "INSERT INTO branches (branch, contact, info) VALUES (?, ?, ?)";
+    const qCreateBranch = "INSERT INTO branches (branch, contact, info, ganancia) VALUES (?, ?, ?, ?)";
     
     pool.getConnection((err, db) => {
       if (err) return res.status(500).send(err);
@@ -42,12 +43,13 @@ router.get("/", (req, res) => {
   // update
 router.put("/:id", (req, res) => {
     const branchId = req.params.id;
-    const qupdateBranch = "UPDATE branches SET `branch`= ?, `contact`= ?, `info`= ? WHERE idbranches = ?";
-    const { branch, contact, info} = req.body
+    const qupdateBranch = "UPDATE branches SET `branch`= ?, `contact`= ?, `info`= ?, `ganancia`= ? WHERE idbranches = ?";
+    const { branch, contact, info, ganancia } = req.body
     const values = [
       branch,
       contact,
       info,
+      ganancia,
     ];
   
     pool.getConnection((err, db) => {
