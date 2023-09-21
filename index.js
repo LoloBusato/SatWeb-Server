@@ -26,6 +26,8 @@ const stockItemRoutes = require('./CRUD/stockItem');
 const supplierRoutes = require('./CRUD/supplier');
 const statesRoutes = require('./CRUD/states');
 
+const estadoGarantiaRoutes = require('./CRUD/estadoGarantia');
+
 const colores = require('./CRUD/color');
 const calidadRepuestos = require('./CRUD/calidadRepuestos');
 const nombreRepuestos = require('./CRUD/nombreRepuestos');
@@ -55,6 +57,8 @@ app.use('/api/reduceStock', reduceStockRoutes);
 app.use('/api/stockitem', stockItemRoutes);
 app.use('/api/supplier', supplierRoutes);
 app.use('/api/states', statesRoutes);
+
+app.use('/api/estadoGarantia', estadoGarantiaRoutes)
 
 app.use('/api/nombresRepuestos', nombreRepuestos);
 app.use('/api/calidadesRepuestos', calidadRepuestos);
