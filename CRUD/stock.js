@@ -83,7 +83,7 @@ router.post("/", (req, res) => {
 
   router.get("/distribute/:id", (req, res) => {
     const branchId = req.params.id;
-    const qgetStock = "SELECT * FROM stock JOIN repuestos ON stock.repuesto_id = repuestos.idrepuestos JOIN proveedores ON stock.proveedor_id = proveedores.idproveedores JOIN stockbranch ON stock.idstock = stockbranch.stock_id WHERE stockbranch.stock_id = ?";
+    const qgetStock = "SELECT *, stock.branch_id AS original_branch FROM stock JOIN repuestos ON stock.repuesto_id = repuestos.idrepuestos JOIN proveedores ON stock.proveedor_id = proveedores.idproveedores JOIN stockbranch ON stock.idstock = stockbranch.stock_id WHERE stockbranch.stock_id = ?";
     
     pool.getConnection((err, db) => {
       if (err) return res.status(500).send(err);
