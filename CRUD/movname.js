@@ -31,86 +31,92 @@ router.post('/', async (req, res) => {
     }) 
   });
 router.post('/movesSells', async (req, res) => {
-    const { 
-      ingreso,
-      egreso,
-      operacion, 
-      monto,
-      userId,
-      branch_id,
-      fecha,
-      order_id,
-      arrayMovements,
-      updateStockArr,
-      insertReduceArr,
-     } = req.body;
-    
-    const valuesCreateMovename = [
-      ingreso,
-      egreso,
-      operacion,
-      monto,
-      fecha,
-      userId,
-      branch_id,
-      order_id,
-    ]
-    const qCreateMoveName= "INSERT INTO movname (ingreso, egreso, operacion, monto, fecha, userId, branch_id, order_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?)";
+  const { 
+    insertClient,
+    clientCheck,
+    valuesCreateMovename,
+    insertOrder,
+    arrayMovements,
+    updateStockArr,
+    insertReduceArr,
+    cobrosValuesArr
+  } = req.body;
 
-    const qCreateMovement = "INSERT INTO movements (movcategories_id, unidades, movname_id, branch_id) VALUES (?, ?, ?, ?)";
+  // Insertar cliente
+  const qClient = 'SELECT * FROM clients WHERE (name = ? and surname = ?) and (email = ? or instagram = ? or phone = ?)';
+  const qCreateClient = "INSERT INTO clients (name, surname, email, instagram, phone, postal) VALUES (?, ?, ?, ?, ?, ?)";
 
-    const qupdateStock = "UPDATE stockbranch SET `cantidad_restante` = ? WHERE stockbranchid = ?";
-    const qInsertReduceStockOne = "INSERT INTO reducestock (orderid, userid, stockbranch_id, date) VALUES (?, ?, ?, ?)"
+  // Insertar orden
+  const qCreateOrder = "INSERT INTO orders (client_id, device_id, branches_id, created_at, returned_at, state_id, problem, password, accesorios, serial, users_id, device_color) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
 
-    pool.getConnection((err, db) => {
-      if (err) return res.status(500).send(err);
-  
-      db.beginTransaction(err => {
-        if (err) return res.status(500).send('Error al iniciar la transacción');
-  
-        try {
-          db.query(qCreateMoveName, valuesCreateMovename, (err, data) => {
-            if (err) throw err
-            const moveName_id = data.insertId    
+  // Insertar repuestos
+  const qupdateStock = "UPDATE stockbranch SET `cantidad_restante` = ? WHERE stockbranchid = ?";
+  const qInsertReduceStock = "INSERT INTO reducestock (orderid, userid, stockbranch_id, date) VALUES (?, ?, ?, ?)"
 
-            arrayMovements.forEach(element => {
-              db.query(qCreateMovement, [...element, moveName_id, branch_id], (err, data) => {
-                if (err) throw err
-              });
-            });
-          });
+  // Insertar movname
+  const qCreateMoveName= "INSERT INTO movname (ingreso, egreso, operacion, monto, fecha, userId, branch_id, order_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?)";
 
-          for (const [cantidad, stockbranchid] of updateStockArr) {
-            db.query(qupdateStock, [cantidad, stockbranchid], (err, data) => {
-              if (err) throw err;
-            });
-          }
+  // Insert movements
+  const qCreateMovement = "INSERT INTO movements (movcategories_id, unidades, branch_id, movname_id) VALUES (?, ?, ?, ?)";
 
-          insertReduceArr.forEach(element => {
-            db.query(qInsertReduceStockOne, element, (err, data) => {
-              if (err) throw err
-            });
-          });
-    
-          db.commit(err => {
-            if (err) {
-              return db.rollback(() => {
-                db.release()
-                return res.status(500).send('Error al realizar commit');
-              });
-            }
-            db.release()
-            return res.status(200).json('Repuesto agregado con exito');
-          });
+  // Insert cobro
+  const qCreateCobros = "INSERT INTO cobros (order_id, movname_id, fecha , pesos, dolares, banco, mercado_pago, encargado) VALUES (?, ?, ?, ?, ?, ?, ?, ?)"
 
-        } catch (err) {
-          db.rollback(() => {
-            db.release()
-            return res.status(500).send('Error en la transacción');
-          });
-        }
-      })
-    })
+  async function executeTransaction() {
+
+    const db = await pool.promise().getConnection();
+    try {
+      await db.beginTransaction();
+
+      // Insertar cliente
+      const [clientRows] = await db.execute(qClient, clientCheck);
+      let clientId;
+      if(clientRows.length > 0){
+        clientId = clientRows[0].idclients
+      } else {
+        const [insertClientResult] = await db.execute(qCreateClient, insertClient);
+        clientId = insertClientResult.insertId
+      }
+
+      // Insertar Orden
+      const [insertOrderResult] = await db.execute(qCreateOrder, [clientId, ...insertOrder]);
+      const order_id = insertOrderResult.insertId;
+
+      // Insertar Repuestos
+      for (const [cantidad, stockbranchid] of updateStockArr) {
+        await db.execute(qupdateStock, [cantidad, stockbranchid]);
+      }
+
+      await Promise.all(insertReduceArr.map(async (element) => {
+        await db.execute(qInsertReduceStock, [order_id, ...element]);
+      }));
+
+      // Insertar movname
+      const [insertMovnameResult] = await db.execute(qCreateMoveName, [...valuesCreateMovename, order_id]);
+      const moveName_id = insertMovnameResult.insertId;
+
+      // Insertar movimientos
+      await Promise.all(arrayMovements.map(async (element) => {
+        await db.execute(qCreateMovement, [...element, moveName_id]);
+      }));
+
+      // Insertar cobros
+      await db.execute(qCreateCobros, [order_id, moveName_id, ...cobrosValuesArr]);
+
+      // Commit si todo fue exitoso
+      await db.commit();
+      return res.status(200).send('Repuesto agregado con éxito');
+
+    } catch (err) {
+      await db.rollback();
+      console.error(err)
+      return res.status(500).send(err);
+
+    } finally {
+      db.release();
+    }
+  }
+  executeTransaction()
   });
 router.post('/movesRepairs', async (req, res) => {
     const { 
