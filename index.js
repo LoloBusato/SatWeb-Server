@@ -27,6 +27,7 @@ const supplierRoutes = require('./CRUD/supplier');
 const statesRoutes = require('./CRUD/states');
 
 const estadoGarantiaRoutes = require('./CRUD/estadoGarantia');
+const garantiaRoutes = require('./CRUD/garantia');
 
 const colores = require('./CRUD/color');
 const calidadRepuestos = require('./CRUD/calidadRepuestos');
@@ -59,6 +60,7 @@ app.use('/api/supplier', supplierRoutes);
 app.use('/api/states', statesRoutes);
 
 app.use('/api/estadoGarantia', estadoGarantiaRoutes)
+app.use('/api/garantia', garantiaRoutes)
 
 app.use('/api/nombresRepuestos', nombreRepuestos);
 app.use('/api/calidadesRepuestos', calidadRepuestos);
@@ -69,8 +71,6 @@ app.use('/api/movcategories', categoriesRoutes);
 app.use('/api/movements', movementsRoutes);
 app.use('/api/movname', movnameRoutes);
 app.use('/api/cobros', cobrosRoutes);
-
-
 
 // Agregar puerto de escucha
 const port = process.env.PORT || 3001;

@@ -7,25 +7,47 @@ const pool = require('../database/dbConfig');
 // CRUD de sucursales
 // create
 router.post('/', async (req, res) => {
-    const { stockId, estadoId, cantidad } = req.body;
-    const values = []
-    const qCreateGarantia = "INSERT INTO garantia (stock_id, estado_garantia_id) VALUES (?, ?)";
-    
-    for (let i = 0; i < cantidad; i++) {
-      values.push([stockId, estadoId])
-    }
+  const { values, idreducestock } = req.body;
+  const qCreateGarantia = "INSERT INTO garantia (stock_id, estado_garantia_id) VALUES (?, ?)";
+  const qUpdateReduceStock = "UPDATE reducestock SET es_garantia = 1 WHERE idreducestock = ? "
 
-    pool.getConnection((err, db) => {
-      if (err) return res.status(500).send(err);
-      
-      db.query(qCreateGarantia, values, (err, data) => {
-        db.release()
-        if (err) return res.status(500).send(err);
-        return res.status(200).json(data)
-      });
-    })  
-  });
-  // read
+  pool.getConnection((err, db) => {
+    if (err) return res.status(500).send(err);
+
+    db.beginTransaction(err => {
+      if (err) return res.status(500).send('Error al iniciar la transacción');
+
+      try {
+
+        db.query(qCreateGarantia, values, (err, data) => {
+          if (err) throw err
+        });
+
+        db.query(qUpdateReduceStock, [idreducestock], (err, data) => {
+          if (err) throw err
+        });
+
+        db.commit(err => {
+          if (err) {
+            return db.rollback(() => {
+              db.release()
+              return res.status(500).send('Error al realizar commit');
+            });
+          }
+
+          db.release()
+          return res.status(200).send("Operacion completada");
+        });
+      } catch (err) {
+        db.rollback(() => {
+          db.release()
+          return res.status(500).send('Error en la transacción');
+        });
+      }
+    }); 
+  })  
+});
+// read
 router.get("/", (req, res) => {
     const qgetGarantia = "SELECT * FROM garantia JOIN stock ON garantia.stock_id = stock.idstock JOIN garantia_estados ON garantia.estado_garantia_id = garantia_estados.idgarantia_estados ORDER BY idgarantia";
     
