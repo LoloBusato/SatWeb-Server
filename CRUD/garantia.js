@@ -49,7 +49,14 @@ router.post('/', async (req, res) => {
 });
 // read
 router.get("/", (req, res) => {
-    const qgetGarantia = "SELECT * FROM garantia JOIN stock ON garantia.stock_id = stock.idstock JOIN garantia_estados ON garantia.estado_garantia_id = garantia_estados.idgarantia_estados ORDER BY idgarantia";
+    const qgetGarantia = `
+    SELECT * FROM garantia 
+    JOIN stock ON garantia.stock_id = stock.idstock 
+    JOIN garantia_estados ON garantia.estado_garantia_id = garantia_estados.idgarantia_estados 
+    JOIN proveedores ON stock.proveedor_id = proveedores.idproveedores 
+    JOIN repuestos ON stock.repuesto_id = repuestos.idrepuestos
+    ORDER BY idgarantia
+    `;
     
     pool.getConnection((err, db) => {
       if (err) return res.status(500).send(err);
