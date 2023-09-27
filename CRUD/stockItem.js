@@ -93,6 +93,21 @@ router.post("/", (req, res) => {
       });
     })
   })
+  //
+  router.put("/cantidadLimite/:id", (req, res) => {
+    const repuestoId = req.params.id;
+    const { cantidad_limite } = req.body;
+    const qupdateItem = "UPDATE repuestos SET `cantidad_limite` = ? WHERE idrepuestos = ?";
+    pool.getConnection((err, db) => {
+      if (err) return res.status(500).send(err);
+      
+      db.query(qupdateItem, [cantidad_limite, repuestoId], (err, data) => {
+        db.release()
+        if (err) return res.status(500).send(err);
+        return res.status(200).json(data)
+      });
+    })
+  })
   // update
   router.put("/:id", (req, res) => {
     pool.getConnection((err, db) => {
