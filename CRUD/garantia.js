@@ -72,14 +72,11 @@ router.get("/", (req, res) => {
 router.put("/", (req, res) => {
     const qupdateGarantia = "UPDATE garantia SET `estado_garantia_id`= ? WHERE idgarantia = ?";
     const qdeleteGarantia = "DELETE FROM garantia WHERE idgarantia = ? ";
-    const qUpdateCantidad = "UPDATE stockbranch SET `cantidad_restante` = ? WHERE stockbranchid = ?"
 
     const { arrayValues } = req.body;
     const tipo = 0
-    const idgarantia = 1
-    const estadoid = 2
-    const cantidad_restante = 3
-    const stockbranchid = 4
+    const estadoid = 1
+    const idgarantia = 2
     const createStockValues = 5
     const createValuesDistribute = 6
   
@@ -89,18 +86,43 @@ router.put("/", (req, res) => {
       try {
         arrayValues.forEach(element => {
           if (element[tipo] === 1 || element[tipo] === 0) {
-            db.query(qupdateGarantia, [element[idgarantia], element[estadoid]], (err, data) => {
+            db.query(qupdateGarantia, [element[estadoid], element[idgarantia]], (err, data) => {
               if (err) throw err
             });
           } else {
             db.query(qdeleteGarantia, [element[idgarantia]], (err, data) => {
               if (err) throw err
             });
-            db.query(qUpdateCantidad, [element[cantidad_restante], element[stockbranchid]], (err, data) => {
-              if (err) throw err
-            });
             if (element[tipo] === 2) {
+              // create movname and movements to represent the losses
+              
+              // Insertar movname
+              const valuesCreateMovename = [
+                ingreso,
+                egreso,
+                operacion,
+                monto,
+                fecha,
+                userId,
+                branch_id,
+                order_id,
+              ]
+              const qCreateMoveName= "INSERT INTO movname (ingreso, egreso, operacion, monto, fecha, userId, branch_id) VALUES (?, ?, ?, ?, ?, ?, ?)";
 
+              // Insert movements
+              const qCreateMovement = "INSERT INTO movements (movcategories_id, unidades, branch_id, movname_id) VALUES (?, ?, ?, ?)";
+              // Insertar movname
+              db.query(qCreateMoveName, element[createStockValues], (err, data) => {
+                if (err) throw err
+                
+                const moveName_id = data.insertId
+
+                element[arrayMovements].forEach(movimiento => {
+                  db.query(qCreateMovement, [...movimiento, moveName_id], (err, data) => {
+                    if (err) throw err
+                  }); 
+                });
+              });
             } else if (element[tipo] === 3) {
               const qCreateStock = "INSERT INTO stock (repuesto_id, cantidad, precio_compra, proveedor_id, fecha_compra, cantidad_limite, branch_id) VALUES (?, ?, ?, ?, ?, ?, ?)";
               const qDistributeStock = "INSERT INTO stockbranch (stock_id, branch_id, cantidad_branch, cantidad_restante) VALUES (?, ?, ?, ?)"
@@ -113,7 +135,6 @@ router.put("/", (req, res) => {
                   if (err) throw err
                 }); 
               });
-
             } else if (element[tipo] === 4) {
 
             }
