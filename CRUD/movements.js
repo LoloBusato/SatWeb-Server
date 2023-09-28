@@ -28,7 +28,7 @@ router.post('/', async (req, res) => {
   // read
   router.get("/:id", (req, res) => {
     const moveId = req.params.id;
-    const qgetMovements = "SELECT idmovements, movname_id, unidades, categories FROM movements JOIN movcategories ON movcategories_id = idmovcategories WHERE branch_id = ? ORDER BY idmovements DESC";
+    const qgetMovements = "SELECT idmovements, movname_id, unidades, categories FROM movements JOIN movcategories ON movcategories_id = idmovcategories WHERE movements.branch_id = ? ORDER BY idmovements DESC";
     
     pool.getConnection((err, db) => {
       if (err) return res.status(500).send(err);
