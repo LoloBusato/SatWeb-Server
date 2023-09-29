@@ -49,13 +49,13 @@ router.post('/', async (req, res) => {
       db.beginTransaction(err => {
         try {
           const moveId = req.params.id;
-          const { arrayInsert, total, cobrosValues, cobro } = req.body;
+          const { arrayInsert, montoTotal } = req.body;
           const movCatId = 0
           const unidades = 1
           const movNameId = 2
           const branch_id = 3
           const values = arrayInsert.map(element => [element[movCatId], element[unidades], element[movNameId], element[branch_id]]);
-          const qDeleteMove = "DELETE FROM movements WHERE movname_id = ? AND movcategories_id IN (SELECT idmovcategories FROM movcategories WHERE categories IN ('Pesos', 'Dolares', 'Banco', 'MercadoPago', 'Encargado'));";
+          const qDeleteMove = "DELETE FROM movements WHERE movname_id = ? AND movcategories_id IN (SELECT idmovcategories FROM movcategories WHERE tipo LIKE '%Cuentas%');";
           const qCreateMove = "INSERT INTO movements (movcategories_id, unidades, movname_id, branch_id) VALUES ?";
           
           db.query(qDeleteMove, [moveId], (err, data) => {
@@ -67,16 +67,9 @@ router.post('/', async (req, res) => {
           });
 
           const qUpdateMonto = "UPDATE movname SET `monto` = ? WHERE idmovname = ?"
-          db.query(qUpdateMonto, [total, moveId], (err, data) => {
+          db.query(qUpdateMonto, [montoTotal, moveId], (err, data) => {
             if (err) throw err
           })
-
-          if (cobro) {
-            const qUpdateCobro = "UPDATE cobros SET `pesos` = ?, `dolares` = ?, `banco` = ?, `mercado_pago` = ?, `encargado` = ? WHERE `movname_id` = ?"
-            db.query(qUpdateCobro, cobrosValues, (err, data) => {
-              if (err) throw err
-            })
-          }
 
           db.commit(err => {
             if (err) {
