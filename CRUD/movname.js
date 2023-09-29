@@ -32,19 +32,14 @@ router.post('/', async (req, res) => {
   });
 router.post('/movesSells', async (req, res) => {
   const { 
-    insertClient,
-    clientCheck,
     valuesCreateMovename,
     insertOrder,
     arrayMovements,
     updateStockArr,
     insertReduceArr,
-    cobrosValuesArr
+    branch_id,
+    fecha
   } = req.body;
-
-  // Insertar cliente
-  const qClient = 'SELECT * FROM clients WHERE (name = ? and surname = ?) and (email = ? or instagram = ? or phone = ?)';
-  const qCreateClient = "INSERT INTO clients (name, surname, email, instagram, phone, postal) VALUES (?, ?, ?, ?, ?, ?)";
 
   // Insertar orden
   const qCreateOrder = "INSERT INTO orders (client_id, device_id, branches_id, created_at, returned_at, state_id, problem, password, accesorios, serial, users_id, device_color) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
@@ -60,7 +55,7 @@ router.post('/movesSells', async (req, res) => {
   const qCreateMovement = "INSERT INTO movements (movcategories_id, unidades, branch_id, movname_id) VALUES (?, ?, ?, ?)";
 
   // Insert cobro
-  const qCreateCobros = "INSERT INTO cobros (order_id, movname_id, fecha , pesos, dolares, banco, mercado_pago, encargado) VALUES (?, ?, ?, ?, ?, ?, ?, ?)"
+  const qCreateCobros = "INSERT INTO cobros (order_id, movname_id, fecha) VALUES (?, ?, ?)"
 
   async function executeTransaction() {
 
@@ -68,18 +63,8 @@ router.post('/movesSells', async (req, res) => {
     try {
       await db.beginTransaction();
 
-      // Insertar cliente
-      const [clientRows] = await db.execute(qClient, clientCheck);
-      let clientId;
-      if(clientRows.length > 0){
-        clientId = clientRows[0].idclients
-      } else {
-        const [insertClientResult] = await db.execute(qCreateClient, insertClient);
-        clientId = insertClientResult.insertId
-      }
-
       // Insertar Orden
-      const [insertOrderResult] = await db.execute(qCreateOrder, [clientId, ...insertOrder]);
+      const [insertOrderResult] = await db.execute(qCreateOrder, insertOrder);
       const order_id = insertOrderResult.insertId;
 
       // Insertar Repuestos
@@ -97,11 +82,11 @@ router.post('/movesSells', async (req, res) => {
 
       // Insertar movimientos
       await Promise.all(arrayMovements.map(async (element) => {
-        await db.execute(qCreateMovement, [...element, moveName_id]);
+        await db.execute(qCreateMovement, [...element, branch_id, moveName_id]);
       }));
 
       // Insertar cobros
-      await db.execute(qCreateCobros, [order_id, moveName_id, ...cobrosValuesArr]);
+      await db.execute(qCreateCobros, [order_id, moveName_id, fecha]);
 
       // Commit si todo fue exitoso
       await db.commit();
