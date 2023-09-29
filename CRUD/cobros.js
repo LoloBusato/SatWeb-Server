@@ -34,8 +34,19 @@ const pool = require('../database/dbConfig');
   // read
   router.get("/movname/:id", (req, res) => {
     const cobroId = req.params.id;
-    const qgetCobro = "SELECT * FROM cobros WHERE movname_id = ? ORDER BY STR_TO_DATE(fecha, '%d/%m/%Y %H:%i:%s') DESC";
-
+    const qgetCobro = `
+    SELECT 
+      c.*, 
+      JSON_OBJECTAGG(movcategories.categories, movements.unidades) AS categoriasUnidades
+    FROM cobros AS c
+    JOIN movements ON c.movname_id = movements.movname_id 
+    JOIN movcategories ON movements.movcategories_id = movcategories.idmovcategories 
+    WHERE tipo LIKE '%Cuentas%' and c.movname_id = ? 
+    GROUP BY
+    c.movname_id
+    ORDER BY STR_TO_DATE(fecha, '%d/%m/%Y %H:%i:%s') DESC
+    `;
+    
     pool.getConnection((err, db) => {
       if (err) return res.status(500).send(err);
       
