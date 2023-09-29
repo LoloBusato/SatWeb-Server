@@ -129,7 +129,6 @@ router.post('/movesRepairs', async (req, res) => {
       fecha,
       order_id,
       arrayMovements,
-      cobrosValues,
       entregarOrden,
     } = req.body;
 
@@ -147,7 +146,7 @@ router.post('/movesRepairs', async (req, res) => {
 
     const qCreateMovement = "INSERT INTO movements (movcategories_id, unidades, movname_id, branch_id) VALUES (?, ?, ?, ?)";
 
-    const qCreateCobros = "INSERT INTO cobros (order_id, fecha, movname_id, pesos, dolares, banco, mercado_pago, encargado) VALUES (?, ?, ?, ?, ?, ?, ?, ?)"
+    const qCreateCobros = "INSERT INTO cobros (order_id, fecha, movname_id) VALUES (?, ?, ?)"
 
     async function executeTransaction() {
 
@@ -168,12 +167,7 @@ router.post('/movesRepairs', async (req, res) => {
         const cobrosValuesArr = [
           order_id,
           fecha,
-          moveName_id,
-          cobrosValues.pesos || 0,
-          cobrosValues.dolares || 0,
-          cobrosValues.banco || 0,
-          cobrosValues.mercado_pago || 0,
-          cobrosValues.encargado || 0,
+          moveName_id
         ];
         await db.execute(qCreateCobros, cobrosValuesArr);
   
