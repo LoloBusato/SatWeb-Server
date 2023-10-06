@@ -7,13 +7,20 @@ const pool = require('../database/dbConfig');
 // CRUD de categorias
 // create
 router.post('/', async (req, res) => {
-    const { categories } = req.body;
-    const qCreateCategory = "INSERT INTO movcategories (categories) VALUES (?)";
+    const { categories, tipo, es_dolar, branch_id } = req.body;
+    const qCreateCategory = "INSERT INTO movcategories (categories, tipo, es_dolar, branch_id) VALUES (?, ?, ?, ?)";
     
+    const valuesCategorias = [
+      categories, 
+      tipo, 
+      es_dolar, 
+      branch_id
+    ]
+
     pool.getConnection((err, db) => {
       if (err) return res.status(500).send(err);
       
-      db.query(qCreateCategory, [categories], (err, data) => {
+      db.query(qCreateCategory, valuesCategorias, (err, data) => {
         db.release()
         if (err) return res.status(500).send(err);
         return res.status(200).json(data)
@@ -51,13 +58,13 @@ router.post('/', async (req, res) => {
   // update
   router.put("/:id", (req, res) => {
     const categoriesId = req.params.id;
-    const { categories } = req.body;
-    const qupdateCategories = "UPDATE movcategories SET `categories` = ? WHERE idmovcategories = ?";
+    const { categories, tipo, es_dolar } = req.body;
+    const qupdateCategories = "UPDATE movcategories SET `categories` = ?, `tipo` = ?, `es_dolar` WHERE idmovcategories = ?";
     
     pool.getConnection((err, db) => {
       if (err) return res.status(500).send(err);
       
-      db.query(qupdateCategories, [categories, categoriesId], (err, data) => {
+      db.query(qupdateCategories, [categories, tipo, es_dolar, categoriesId], (err, data) => {
         db.release()
         if (err) return res.status(500).send(err);
         return res.status(200).json(data)
