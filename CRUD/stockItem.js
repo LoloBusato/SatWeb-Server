@@ -79,6 +79,7 @@ router.post("/", (req, res) => {
       types ON devices.type_id = types.typeid
     LEFT JOIN
       brands ON devices.brand_id = brands.brandid
+    WHERE repuestos.mostrar = 1
     GROUP BY
       repuestos.idrepuestos
     ORDER BY
@@ -174,7 +175,7 @@ router.post("/", (req, res) => {
   // delete
   router.delete("/:id", (req, res) => {
     const itemId = req.params.id;
-    const qdeleteItem = " DELETE FROM repuestos WHERE idrepuestos = ? ";
+    const qdeleteItem = "UPDATE repuestos SET mostrar = 0 WHERE idrepuestos = ? ";
   
     pool.getConnection((err, db) => {
       if (err) return res.status(500).send(err);
