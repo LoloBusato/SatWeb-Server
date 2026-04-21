@@ -1,0 +1,14 @@
++---------------------------------------------------------+---------+
+| fk_check                                                | orphans |
++---------------------------------------------------------+---------+
+| devices.brand_id -> brands.brandid                      |       0 |
+| orders.users_id -> users.idusers                        |       0 |
+| orders.order_primary_id -> orders.order_id (self)       |    3833 |
+| stock.repuesto_id -> repuestos.idrepuestos              |       7 |
+| stock.proveedor_id -> proveedores.idproveedores         |       0 |
+| stock.branch_id -> branches.idbranches                  |       0 |
+| messages.orderId -> orders.order_id                     |       7 |
+| reducestock.stockid -> stock.idstock                    |      89 |
+| reducestock.stockbranch_id -> stockbranch.stockbranchid |     568 |
+| cobros.encargado -> users.idusers (asumido)             |       0 |
++---------------------------------------------------------+---------+
