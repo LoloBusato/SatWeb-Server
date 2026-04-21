@@ -34,11 +34,16 @@ const schema = z.object({
 
 const parsed = schema.safeParse(process.env);
 if (!parsed.success) {
-  console.error('Invalid environment variables:');
-  for (const issue of parsed.error.issues) {
-    console.error(`  - ${issue.path.join('.')}: ${issue.message}`);
-  }
-  process.exit(1);
+  const details = parsed.error.issues
+    .map((i) => `  - ${i.path.join('.')}: ${i.message}`)
+    .join('\n');
+  // Throws (instead of process.exit) so consumers can handle it. For
+  // example, the legacy index.js wraps `require('./dist/v2')` in a
+  // try/catch — without env configured, v2 simply won't mount, and
+  // the legacy routes keep serving traffic. Standalone runs
+  // (src/main.ts) surface the error at startup and exit with the
+  // full stack trace.
+  throw new Error(`Invalid environment variables:\n${details}`);
 }
 
 export const env = parsed.data;
