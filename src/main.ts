@@ -8,9 +8,17 @@ import { db, pool } from './infrastructure/db';
 import { UserRepository } from './infrastructure/repositories/UserRepository';
 import { PermissionRepository } from './infrastructure/repositories/PermissionRepository';
 import { OrderRepository } from './infrastructure/repositories/OrderRepository';
+import { StateRepository } from './infrastructure/repositories/StateRepository';
+import { BranchRepository } from './infrastructure/repositories/BranchRepository';
+import { GroupRepository } from './infrastructure/repositories/GroupRepository';
 import { AuthService } from './application/services/AuthService';
 import { authRouter } from './presentation/routes/auth.routes';
 import { ordersRouter } from './presentation/routes/orders.routes';
+import { statesRouter } from './presentation/routes/states.routes';
+import { branchesRouter } from './presentation/routes/branches.routes';
+import { groupsRouter } from './presentation/routes/groups.routes';
+import { permissionsRouter } from './presentation/routes/permissions.routes';
+import { usersRouter } from './presentation/routes/users.routes';
 import { errorHandler } from './presentation/middlewares/errorHandler';
 
 const app = express();
@@ -45,10 +53,18 @@ app.get('/api/v2/health', async (_req, res) => {
 const userRepo = new UserRepository(db);
 const permRepo = new PermissionRepository(db);
 const orderRepo = new OrderRepository(db);
+const stateRepo = new StateRepository(db);
+const branchRepo = new BranchRepository(db);
+const groupRepo = new GroupRepository(db);
 const authService = new AuthService(userRepo, permRepo);
 
 app.use('/api/v2/auth', authRouter(authService));
 app.use('/api/v2/orders', ordersRouter(orderRepo, authService));
+app.use('/api/v2/states', statesRouter(stateRepo, authService));
+app.use('/api/v2/branches', branchesRouter(branchRepo, authService));
+app.use('/api/v2/groups', groupsRouter(groupRepo, permRepo, authService));
+app.use('/api/v2/permissions', permissionsRouter(permRepo, authService));
+app.use('/api/v2/users', usersRouter(userRepo, authService));
 
 app.use(errorHandler);
 

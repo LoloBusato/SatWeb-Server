@@ -81,6 +81,10 @@ export class AuthService {
     return { token, user: toPublicUser(user), permissions };
   }
 
+  async hashPassword(plaintext: string): Promise<string> {
+    return bcrypt.hash(plaintext, env.BCRYPT_ROUNDS);
+  }
+
   async changePassword(
     userId: number,
     oldPlaintext: string,
