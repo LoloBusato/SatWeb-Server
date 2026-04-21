@@ -7,8 +7,10 @@ import { logger } from './config/logger';
 import { db, pool } from './infrastructure/db';
 import { UserRepository } from './infrastructure/repositories/UserRepository';
 import { PermissionRepository } from './infrastructure/repositories/PermissionRepository';
+import { OrderRepository } from './infrastructure/repositories/OrderRepository';
 import { AuthService } from './application/services/AuthService';
 import { authRouter } from './presentation/routes/auth.routes';
+import { ordersRouter } from './presentation/routes/orders.routes';
 import { errorHandler } from './presentation/middlewares/errorHandler';
 
 const app = express();
@@ -42,9 +44,11 @@ app.get('/api/v2/health', async (_req, res) => {
 
 const userRepo = new UserRepository(db);
 const permRepo = new PermissionRepository(db);
+const orderRepo = new OrderRepository(db);
 const authService = new AuthService(userRepo, permRepo);
 
 app.use('/api/v2/auth', authRouter(authService));
+app.use('/api/v2/orders', ordersRouter(orderRepo, authService));
 
 app.use(errorHandler);
 

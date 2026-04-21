@@ -51,3 +51,33 @@ export const groupPermissions = mysqlTable(
     pk: primaryKey({ columns: [t.groupId, t.permissionId] }),
   }),
 );
+
+export const clients = mysqlTable('clients', {
+  id: int('idclients').autoincrement().primaryKey(),
+  name: varchar('name', { length: 45 }).notNull(),
+  surname: varchar('surname', { length: 45 }),
+  email: varchar('email', { length: 45 }),
+  instagram: varchar('instagram', { length: 45 }),
+  phone: varchar('phone', { length: 45 }),
+});
+
+export const devices = mysqlTable('devices', {
+  id: int('iddevices').autoincrement().primaryKey(),
+  brandId: int('brand_id').notNull(),
+  typeId: int('type_id').notNull(),
+  model: varchar('model', { length: 45 }).notNull(),
+});
+
+export const orders = mysqlTable('orders', {
+  id: int('order_id').autoincrement().primaryKey(),
+  clientId: int('client_id').notNull(),
+  deviceId: int('device_id').notNull(),
+  branchId: int('branches_id').notNull(),
+  stateId: int('state_id').notNull(),
+  usersId: int('users_id').notNull(),
+  createdAt: varchar('created_at', { length: 11 }).notNull(),
+  returnedAt: varchar('returned_at', { length: 11 }),
+  problem: varchar('problem', { length: 500 }).notNull(),
+  serial: varchar('serial', { length: 45 }),
+  deviceColor: varchar('device_color', { length: 30 }),
+});
