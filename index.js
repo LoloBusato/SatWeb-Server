@@ -72,6 +72,17 @@ app.use('/api/movements', movementsRoutes);
 app.use('/api/movname', movnameRoutes);
 app.use('/api/cobros', cobrosRoutes);
 
+// Mount /api/v2/* router (TypeScript backend, built to dist/ by `npm run build`).
+// Wrapped in try/catch so `node index.js` still works if dist/ is missing
+// (e.g. in a fresh clone before running the build).
+try {
+  const { createV2Router } = require('./dist/v2');
+  app.use('/api/v2', createV2Router());
+  console.log('v2 API mounted at /api/v2');
+} catch (err) {
+  console.warn('v2 API not mounted (dist missing?):', err.message);
+}
+
 // Agregar puerto de escucha
 const port = process.env.PORT || 3001;
 
