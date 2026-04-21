@@ -10,6 +10,7 @@
     "start": "nodemon index.js",
     "dev": "tsx watch src/main.ts",
     "build": "tsc",
+    "vercel-build": "tsc",
     "start:v2": "node dist/main.js",
     "typecheck": "tsc --noEmit",
     "migrate": "tsx db/migrate.ts",
