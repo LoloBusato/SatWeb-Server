@@ -22,7 +22,7 @@ router.post('/', async (req, res) => {
   });
   // read
   router.get("/", (req, res) => {
-    const qgetStates = "SELECT * FROM states ORDER BY state";
+    const qgetStates = "SELECT * FROM states WHERE deleted_at IS NULL ORDER BY state";
     
     pool.getConnection((err, db) => {
       if (err) return res.status(500).send(err);

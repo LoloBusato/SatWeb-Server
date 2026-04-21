@@ -28,7 +28,7 @@ router.post('/', async (req, res) => {
   });
   // read
 router.get("/", (req, res) => {
-    const qgetBranches = "SELECT * FROM branches ORDER BY idbranches";
+    const qgetBranches = "SELECT * FROM branches WHERE deleted_at IS NULL ORDER BY idbranches";
     
     pool.getConnection((err, db) => {
       if (err) return res.status(500).send(err);

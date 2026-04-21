@@ -23,7 +23,7 @@ router.post("/", (req, res) => {
 })
 // read
 router.get("/", (req, res) => {
-  const qgetUsers = "SELECT * FROM grupousuarios ORDER BY grupo";
+  const qgetUsers = "SELECT * FROM grupousuarios WHERE deleted_at IS NULL ORDER BY grupo";
 
   pool.getConnection((err, db) => {
     if (err) return res.status(500).send(err);
