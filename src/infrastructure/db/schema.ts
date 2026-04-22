@@ -81,3 +81,13 @@ export const orders = mysqlTable('orders', {
   serial: varchar('serial', { length: 45 }),
   deviceColor: varchar('device_color', { length: 30 }),
 });
+
+export const orderStateHistory = mysqlTable('order_state_history', {
+  id: int('id').autoincrement().primaryKey(),
+  orderId: int('order_id').notNull(),
+  fromStateId: int('from_state_id'),
+  toStateId: int('to_state_id').notNull(),
+  changedBy: int('changed_by').notNull(),
+  changedAt: datetime('changed_at').default(sql`CURRENT_TIMESTAMP`).notNull(),
+  note: varchar('note', { length: 255 }),
+});
