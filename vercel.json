@@ -4,6 +4,11 @@
         { "src": "./index.js", "use": "@vercel/node" }
     ],
     "routes": [
-        {"src": "/api/(.*)", "dest": "/"}
+        { "src": "/api/(.*)", "dest": "/" },
+        {
+            "src": "/(.*)",
+            "status": 302,
+            "headers": { "Location": "https://satwebtdi.netlify.app/$1" }
+        }
     ]
 }
