@@ -28,6 +28,11 @@ const schema = z.object({
   JWT_EXPIRES_IN: z.string().default('8h'),
   BCRYPT_ROUNDS: z.coerce.number().int().min(4).max(15).default(12),
 
+  // Opcional: si se setea, Vercel Cron Jobs pueden invocar
+  // /api/v2/internal/archive-overdue-tick usando este valor como Bearer.
+  // Si no está seteado, el endpoint devuelve 503 (no configurado).
+  CRON_SECRET: z.string().min(32).optional(),
+
   CORS_ORIGIN: z.string().default('http://localhost:3000'),
   ALLOW_LEGACY_PASSWORD_MIGRATION: boolFromEnv.default('true'),
 });

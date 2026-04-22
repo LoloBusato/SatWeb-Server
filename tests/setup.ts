@@ -15,3 +15,4 @@ process.env.BCRYPT_ROUNDS = '4';
 process.env.CORS_ORIGIN = 'http://localhost:3000';
 process.env.ALLOW_LEGACY_PASSWORD_MIGRATION = 'true';
 process.env.LOG_LEVEL = 'silent';
+process.env.CRON_SECRET = 'test-cron-secret-at-least-32-characters-long-xxx';

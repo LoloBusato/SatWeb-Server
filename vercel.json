@@ -10,5 +10,8 @@
             "status": 302,
             "headers": { "Location": "https://satwebtdi.netlify.app/$1" }
         }
+    ],
+    "crons": [
+        { "path": "/api/v2/internal/archive-overdue-tick", "schedule": "0 6 * * *" }
     ]
 }
