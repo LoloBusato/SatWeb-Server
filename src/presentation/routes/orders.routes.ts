@@ -1,7 +1,11 @@
 import { Router } from 'express';
 import { z } from 'zod';
 import { validate } from '../middlewares/validate';
-import { requireAuth, attachBranchFilter } from '../middlewares/requireAuth';
+import {
+  requireAuth,
+  attachBranchFilter,
+  requirePermission,
+} from '../middlewares/requireAuth';
 import type { AuthService } from '../../application/services/AuthService';
 import type { OrderRepository } from '../../infrastructure/repositories/OrderRepository';
 import type { OrderStateHistoryRepository } from '../../infrastructure/repositories/OrderStateHistoryRepository';
@@ -58,6 +62,46 @@ export function ordersRouter(
           page: { limit: q.limit, offset: q.offset, count: items.length },
           branchFilter,
         });
+      } catch (err) {
+        next(err);
+      }
+    },
+  );
+
+  // Listas derivadas de branch_settings — tienen que declararse ANTES
+  // de /:id porque /pickup-pending matchearía como id='pickup-pending'
+  // y fallaría la validación del param numérico.
+  r.get('/pickup-pending', auth, attachBranchFilter, async (req, res, next) => {
+    try {
+      const items = await orderRepo.listPickupPending(req.branchFilter ?? null);
+      res.json({ items, branchFilter: req.branchFilter ?? null });
+    } catch (err) {
+      next(err);
+    }
+  });
+
+  r.get('/incucai-eligible', auth, attachBranchFilter, async (req, res, next) => {
+    try {
+      const items = await orderRepo.listIncucaiEligible(req.branchFilter ?? null);
+      res.json({ items, branchFilter: req.branchFilter ?? null });
+    } catch (err) {
+      next(err);
+    }
+  });
+
+  r.post(
+    '/archive-overdue',
+    auth,
+    requirePermission('branches:manage'),
+    attachBranchFilter,
+    async (req, res, next) => {
+      try {
+        if (!req.user) throw new UnauthorizedError();
+        const result = await orderRepo.archiveOverdue(
+          req.branchFilter ?? null,
+          req.user.sub,
+        );
+        res.json(result);
       } catch (err) {
         next(err);
       }

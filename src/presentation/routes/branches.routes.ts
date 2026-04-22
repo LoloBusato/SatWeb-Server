@@ -4,6 +4,7 @@ import { validate } from '../middlewares/validate';
 import { requireAuth, requirePermission } from '../middlewares/requireAuth';
 import type { AuthService } from '../../application/services/AuthService';
 import type { BranchRepository } from '../../infrastructure/repositories/BranchRepository';
+import type { BranchSettingsRepository } from '../../infrastructure/repositories/BranchSettingsRepository';
 import { NotFoundError } from '../../domain/errors';
 
 const idParamSchema = z.object({
@@ -19,8 +20,16 @@ const createSchema = z.object({
 
 const updateSchema = createSchema.partial();
 
+const settingsSchema = z.object({
+  readyStateId: z.number().int().positive(),
+  incucaiStateId: z.number().int().positive(),
+  pickupReminderHours: z.number().int().min(1).max(24 * 365).optional(),
+  incucaiAfterDays: z.number().int().min(1).max(365 * 10).optional(),
+});
+
 export function branchesRouter(
   branchRepo: BranchRepository,
+  branchSettingsRepo: BranchSettingsRepository,
   authService: AuthService,
 ): Router {
   const r = Router();
@@ -81,6 +90,40 @@ export function branchesRouter(
         const id = Number(req.params.id);
         await branchRepo.softDelete(id);
         res.status(204).end();
+      } catch (err) {
+        next(err);
+      }
+    },
+  );
+
+  r.get(
+    '/:id/settings',
+    auth,
+    canManage,
+    validate({ params: idParamSchema }),
+    async (req, res, next) => {
+      try {
+        const id = Number(req.params.id);
+        const branch = await branchRepo.findById(id);
+        if (!branch) throw new NotFoundError('Sucursal');
+        const settings = await branchSettingsRepo.findByBranchId(id);
+        res.json(settings);
+      } catch (err) {
+        next(err);
+      }
+    },
+  );
+
+  r.put(
+    '/:id/settings',
+    auth,
+    canManage,
+    validate({ params: idParamSchema, body: settingsSchema }),
+    async (req, res, next) => {
+      try {
+        const id = Number(req.params.id);
+        const settings = await branchSettingsRepo.upsert(id, req.body);
+        res.json(settings);
       } catch (err) {
         next(err);
       }

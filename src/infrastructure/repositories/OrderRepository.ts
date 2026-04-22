@@ -42,6 +42,24 @@ export interface OrderDetail extends OrderListItem {
   usersId: number;
 }
 
+export interface PickupPendingItem {
+  id: number;
+  clientName: string;
+  deviceModel: string;
+  stateId: number;
+  stateName: string;
+  branchId: number;
+  branchName: string;
+  readyStateId: number;
+  lastReadyAt: Date;
+  hoursSinceReady: number;
+}
+
+export interface IncucaiEligibleItem extends PickupPendingItem {
+  incucaiStateId: number;
+  daysSinceReady: number;
+}
+
 /**
  * Formato d/m/yyyy para orders.returned_at (VARCHAR(11)). Replica el formato
  * que el frontend legacy escribe con `toLocaleString('en-IN', ...)`. Se
@@ -145,6 +163,113 @@ export class OrderRepository {
    * El caller es responsable de haber validado el branch scope (con
    * findById + branchFilter) antes de llamar acá.
    */
+  /**
+   * Órdenes en el estado "ready" (configurado por sucursal) cuya última
+   * transición a ese estado fue hace >= pickup_reminder_hours atrás.
+   *
+   * Sólo se consideran sucursales con branch_settings configurado; las que
+   * no tienen config no aparecen (JOIN INNER con branch_settings).
+   *
+   * Requiere `order_state_history`: órdenes que estaban en el estado antes
+   * de Fase 2.1 no tienen historial y quedan fuera hasta que su estado
+   * cambie por primera vez.
+   */
+  async listPickupPending(branchFilter: number | null): Promise<PickupPendingItem[]> {
+    const branchClause = branchFilter !== null
+      ? sql`AND o.branches_id = ${branchFilter}`
+      : sql``;
+    const [rows] = (await this.db.execute(sql`
+      SELECT
+        o.order_id AS id,
+        CONCAT_WS(' ', c.name, c.surname) AS clientName,
+        d.model AS deviceModel,
+        o.state_id AS stateId,
+        s.state AS stateName,
+        o.branches_id AS branchId,
+        br.branch AS branchName,
+        bs.ready_state_id AS readyStateId,
+        MAX(osh.changed_at) AS lastReadyAt,
+        TIMESTAMPDIFF(HOUR, MAX(osh.changed_at), NOW()) AS hoursSinceReady
+      FROM orders o
+      JOIN branch_settings bs ON bs.branch_id = o.branches_id
+      JOIN clients c ON c.idclients = o.client_id
+      JOIN devices d ON d.iddevices = o.device_id
+      JOIN states s ON s.idstates = o.state_id
+      JOIN branches br ON br.idbranches = o.branches_id
+      LEFT JOIN order_state_history osh
+        ON osh.order_id = o.order_id AND osh.to_state_id = bs.ready_state_id
+      WHERE o.state_id = bs.ready_state_id
+        AND o.returned_at IS NULL
+        ${branchClause}
+      GROUP BY o.order_id, bs.ready_state_id, bs.pickup_reminder_hours
+      HAVING MAX(osh.changed_at) IS NOT NULL
+        AND MAX(osh.changed_at) <= NOW() - INTERVAL bs.pickup_reminder_hours HOUR
+      ORDER BY MAX(osh.changed_at) ASC
+    `)) as unknown as [PickupPendingItem[]];
+    return rows;
+  }
+
+  async listIncucaiEligible(branchFilter: number | null): Promise<IncucaiEligibleItem[]> {
+    const branchClause = branchFilter !== null
+      ? sql`AND o.branches_id = ${branchFilter}`
+      : sql``;
+    const [rows] = (await this.db.execute(sql`
+      SELECT
+        o.order_id AS id,
+        CONCAT_WS(' ', c.name, c.surname) AS clientName,
+        d.model AS deviceModel,
+        o.state_id AS stateId,
+        s.state AS stateName,
+        o.branches_id AS branchId,
+        br.branch AS branchName,
+        bs.ready_state_id AS readyStateId,
+        bs.incucai_state_id AS incucaiStateId,
+        MAX(osh.changed_at) AS lastReadyAt,
+        TIMESTAMPDIFF(DAY, MAX(osh.changed_at), NOW()) AS daysSinceReady
+      FROM orders o
+      JOIN branch_settings bs ON bs.branch_id = o.branches_id
+      JOIN clients c ON c.idclients = o.client_id
+      JOIN devices d ON d.iddevices = o.device_id
+      JOIN states s ON s.idstates = o.state_id
+      JOIN branches br ON br.idbranches = o.branches_id
+      LEFT JOIN order_state_history osh
+        ON osh.order_id = o.order_id AND osh.to_state_id = bs.ready_state_id
+      WHERE o.state_id = bs.ready_state_id
+        AND o.returned_at IS NULL
+        ${branchClause}
+      GROUP BY o.order_id, bs.ready_state_id, bs.incucai_state_id, bs.incucai_after_days
+      HAVING MAX(osh.changed_at) IS NOT NULL
+        AND MAX(osh.changed_at) <= NOW() - INTERVAL bs.incucai_after_days DAY
+      ORDER BY MAX(osh.changed_at) ASC
+    `)) as unknown as [IncucaiEligibleItem[]];
+    return rows;
+  }
+
+  /**
+   * Mueve al estado INCUCAI de su sucursal a cada orden elegible. Loop por
+   * orden para que cada transición quede registrada individualmente en
+   * `order_state_history` (reusa updateState, que es transaccional). Devuelve
+   * la cantidad efectivamente archivada.
+   */
+  async archiveOverdue(
+    branchFilter: number | null,
+    changedByUserId: number,
+  ): Promise<{ archived: number; orderIds: number[] }> {
+    const eligible = await this.listIncucaiEligible(branchFilter);
+    const archived: number[] = [];
+    for (const row of eligible) {
+      try {
+        await this.updateState(row.id, row.incucaiStateId, changedByUserId, 'archivado automático');
+        archived.push(row.id);
+      } catch (err) {
+        // Una orden que falla (ej. transición no-op porque ya se archivó
+        // en paralelo) no aborta el lote. El caller puede re-ejecutar.
+        continue;
+      }
+    }
+    return { archived: archived.length, orderIds: archived };
+  }
+
   async updateState(
     orderId: number,
     newStateId: number,
