@@ -93,6 +93,36 @@ export const orderLocationHistory = mysqlTable('order_location_history', {
   note: varchar('note', { length: 255 }),
 });
 
+// Tablas de stock (declaración mínima — Fase 2.4 sólo lee repuesto + muta stockbranch).
+export const repuestos = mysqlTable('repuestos', {
+  id: int('idrepuestos').autoincrement().primaryKey(),
+  name: varchar('repuesto', { length: 155 }).notNull(),
+});
+
+export const stock = mysqlTable('stock', {
+  id: int('idstock').autoincrement().primaryKey(),
+  repuestoId: int('repuesto_id').notNull(),
+});
+
+export const stockbranch = mysqlTable('stockbranch', {
+  id: int('stockbranchid').autoincrement().primaryKey(),
+  stockId: int('stock_id').notNull(),
+  branchId: int('branch_id').notNull(),
+  cantidadBranch: int('cantidad_branch').notNull(),
+  cantidadRestante: int('cantidad_restante').notNull(),
+});
+
+export const stockTransfers = mysqlTable('stock_transfers', {
+  id: int('id').autoincrement().primaryKey(),
+  stockId: int('stock_id').notNull(),
+  fromBranchId: int('from_branch_id').notNull(),
+  toBranchId: int('to_branch_id').notNull(),
+  cantidad: int('cantidad').notNull(),
+  transferredBy: int('transferred_by').notNull(),
+  transferredAt: datetime('transferred_at').default(sql`CURRENT_TIMESTAMP`).notNull(),
+  note: varchar('note', { length: 255 }),
+});
+
 export const orderStateHistory = mysqlTable('order_state_history', {
   id: int('id').autoincrement().primaryKey(),
   orderId: int('order_id').notNull(),
