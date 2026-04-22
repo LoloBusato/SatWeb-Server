@@ -5,16 +5,6 @@ import { sql } from 'drizzle-orm';
 import * as schema from '../db/schema';
 import { ConflictError, NotFoundError } from '../../domain/errors';
 
-/**
- * Nombre exacto del estado que marca una orden como entregada. Cuando
- * el state_id de una orden cambia a un estado con este nombre, la lógica
- * en updateState también setea returned_at. El nombre matchea el del
- * legacy (WHERE state = 'ENTREGADO' en CRUD/orders.js) y seguirá siendo
- * autoritativo hasta que Fase 3 agregue una columna explícita
- * states.marks_as_delivered.
- */
-const ENTREGADO_STATE_NAME = 'ENTREGADO';
-
 export interface ListOrdersOptions {
   limit: number;
   offset: number;
@@ -375,7 +365,11 @@ export class OrderRepository {
     }
 
     const stateRows = await this.db
-      .select({ id: schema.states.id, name: schema.states.name })
+      .select({
+        id: schema.states.id,
+        name: schema.states.name,
+        marksAsDelivered: schema.states.marksAsDelivered,
+      })
       .from(schema.states)
       .where(and(eq(schema.states.id, newStateId), isNull(schema.states.deletedAt)))
       .limit(1);
@@ -383,7 +377,7 @@ export class OrderRepository {
     if (!newState) throw new ConflictError('Estado inexistente o eliminado');
 
     const updates: { stateId: number; returnedAt?: string } = { stateId: newStateId };
-    if (newState.name === ENTREGADO_STATE_NAME && !order.returnedAt) {
+    if (newState.marksAsDelivered === 1 && !order.returnedAt) {
       updates.returnedAt = formatDeliveryDate();
     }
 

@@ -39,6 +39,7 @@ export const states = mysqlTable('states', {
   id: int('idstates').autoincrement().primaryKey(),
   name: varchar('state', { length: 155 }).notNull(),
   color: varchar('color', { length: 25 }),
+  marksAsDelivered: tinyint('marks_as_delivered').notNull().default(0),
   deletedAt: datetime('deleted_at'),
 });
 
