@@ -1,4 +1,13 @@
-import { mysqlTable, int, varchar, datetime, float, primaryKey } from 'drizzle-orm/mysql-core';
+import {
+  mysqlTable,
+  int,
+  varchar,
+  datetime,
+  float,
+  primaryKey,
+  tinyint,
+  decimal,
+} from 'drizzle-orm/mysql-core';
 import { sql } from 'drizzle-orm';
 
 export const users = mysqlTable('users', {
@@ -97,7 +106,24 @@ export const orderLocationHistory = mysqlTable('order_location_history', {
 export const repuestos = mysqlTable('repuestos', {
   id: int('idrepuestos').autoincrement().primaryKey(),
   name: varchar('repuesto', { length: 155 }).notNull(),
+  cantidadLimite: int('cantidad_limite').notNull().default(0),
+  colorId: int('color_id'),
+  nombreRepuestosId: int('nombre_repuestos_id'),
+  calidadRepuestosId: int('calidad_repuestos_id'),
+  almacenamientoRepuestosId: int('almacenamiento_repuestos_id'),
+  venta: tinyint('venta').default(0),
+  mostrar: tinyint('mostrar').notNull().default(1),
+  precioVentaSugerido: decimal('precio_venta_sugerido', { precision: 10, scale: 2 }),
 });
+
+export const repuestosDevices = mysqlTable(
+  'repuestosdevices',
+  {
+    id: int('repuestosdevicesid').autoincrement().primaryKey(),
+    repuestosId: int('repuestos_id').notNull(),
+    devicesId: int('devices_id').notNull(),
+  },
+);
 
 export const stock = mysqlTable('stock', {
   id: int('idstock').autoincrement().primaryKey(),

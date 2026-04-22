@@ -12,6 +12,7 @@ import { OrderStateHistoryRepository } from './infrastructure/repositories/Order
 import { OrderLocationHistoryRepository } from './infrastructure/repositories/OrderLocationHistoryRepository';
 import { BranchSettingsRepository } from './infrastructure/repositories/BranchSettingsRepository';
 import { StockTransferRepository } from './infrastructure/repositories/StockTransferRepository';
+import { RepuestoRepository } from './infrastructure/repositories/RepuestoRepository';
 import { StateRepository } from './infrastructure/repositories/StateRepository';
 import { BranchRepository } from './infrastructure/repositories/BranchRepository';
 import { GroupRepository } from './infrastructure/repositories/GroupRepository';
@@ -24,6 +25,7 @@ import { groupsRouter } from './presentation/routes/groups.routes';
 import { permissionsRouter } from './presentation/routes/permissions.routes';
 import { usersRouter } from './presentation/routes/users.routes';
 import { stockTransfersRouter } from './presentation/routes/stock-transfers.routes';
+import { repuestosRouter } from './presentation/routes/repuestos.routes';
 import { errorHandler } from './presentation/middlewares/errorHandler';
 
 /**
@@ -71,6 +73,7 @@ export function createV2Router(): Router {
   const branchRepo = new BranchRepository(db);
   const branchSettingsRepo = new BranchSettingsRepository(db);
   const stockTransferRepo = new StockTransferRepository(db);
+  const repuestoRepo = new RepuestoRepository(db);
   const groupRepo = new GroupRepository(db);
   const authService = new AuthService(userRepo, permRepo);
 
@@ -85,6 +88,7 @@ export function createV2Router(): Router {
   r.use('/permissions', permissionsRouter(permRepo, authService));
   r.use('/users', usersRouter(userRepo, authService));
   r.use('/stock-transfers', stockTransfersRouter(stockTransferRepo, authService));
+  r.use('/repuestos', repuestosRouter(repuestoRepo, authService));
 
   r.use(errorHandler);
 
