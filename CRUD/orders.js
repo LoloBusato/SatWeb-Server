@@ -7,20 +7,24 @@ const pool = require('../database/dbConfig');
 // create
 router.post("/", (req, res) => {
   const { accesorios, branches_id, client_id, device_id, device_color, password, problem, serial, state_id, users_id, created_at } = req.body;
+  // current_branch_id se agrega repitiendo branches_id para cumplir con el NOT NULL
+  // introducido en la migración 0007 (Fase 2.3). Nacen en su sucursal de origen;
+  // las transferencias posteriores lo mueven via /api/v2/orders/:id/transfer.
   const values = [
-    client_id, 
-    device_id, 
-    branches_id, 
-    created_at, 
-    state_id, 
-    problem, 
-    password, 
-    accesorios, 
-    serial, 
+    client_id,
+    device_id,
+    branches_id,
+    branches_id,
+    created_at,
+    state_id,
+    problem,
+    password,
+    accesorios,
+    serial,
     users_id,
     device_color,
   ]
-  const qCreateOrder = "INSERT INTO orders (client_id, device_id, branches_id, created_at, state_id, problem, password, accesorios, serial, users_id, device_color) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
+  const qCreateOrder = "INSERT INTO orders (client_id, device_id, branches_id, current_branch_id, created_at, state_id, problem, password, accesorios, serial, users_id, device_color) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
   
   pool.getConnection((err, db) => {
     if (err) return res.status(500).send(err);

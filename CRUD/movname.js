@@ -41,8 +41,11 @@ router.post('/movesSells', async (req, res) => {
     fecha
   } = req.body;
 
-  // Insertar orden
-  const qCreateOrder = "INSERT INTO orders (client_id, device_id, branches_id, created_at, returned_at, state_id, problem, password, accesorios, serial, users_id, device_color) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
+  // Insertar orden — current_branch_id se duplica desde branches_id (pos 2 del
+  // array insertOrder) para cumplir con el NOT NULL agregado en la migración
+  // 0007 (Fase 2.3). Ver CRUD/orders.js para el patrón análogo en el POST
+  // directo de /api/orders.
+  const qCreateOrder = "INSERT INTO orders (client_id, device_id, branches_id, current_branch_id, created_at, returned_at, state_id, problem, password, accesorios, serial, users_id, device_color) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
 
   // Insertar repuestos
   const qupdateStock = "UPDATE stockbranch SET `cantidad_restante` = ? WHERE stockbranchid = ?";
@@ -64,7 +67,12 @@ router.post('/movesSells', async (req, res) => {
       await db.beginTransaction();
 
       // Insertar Orden
-      const [insertOrderResult] = await db.execute(qCreateOrder, insertOrder);
+      const insertOrderValues = [
+        ...insertOrder.slice(0, 3),
+        insertOrder[2], // current_branch_id = branches_id
+        ...insertOrder.slice(3),
+      ];
+      const [insertOrderResult] = await db.execute(qCreateOrder, insertOrderValues);
       const order_id = insertOrderResult.insertId;
 
       // Insertar Repuestos
