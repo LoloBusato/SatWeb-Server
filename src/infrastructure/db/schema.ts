@@ -73,6 +73,7 @@ export const orders = mysqlTable('orders', {
   clientId: int('client_id').notNull(),
   deviceId: int('device_id').notNull(),
   branchId: int('branches_id').notNull(),
+  currentBranchId: int('current_branch_id').notNull(),
   stateId: int('state_id').notNull(),
   usersId: int('users_id').notNull(),
   createdAt: varchar('created_at', { length: 11 }).notNull(),
@@ -80,6 +81,16 @@ export const orders = mysqlTable('orders', {
   problem: varchar('problem', { length: 500 }).notNull(),
   serial: varchar('serial', { length: 45 }),
   deviceColor: varchar('device_color', { length: 30 }),
+});
+
+export const orderLocationHistory = mysqlTable('order_location_history', {
+  id: int('id').autoincrement().primaryKey(),
+  orderId: int('order_id').notNull(),
+  fromBranchId: int('from_branch_id'),
+  toBranchId: int('to_branch_id').notNull(),
+  transferredBy: int('transferred_by').notNull(),
+  transferredAt: datetime('transferred_at').default(sql`CURRENT_TIMESTAMP`).notNull(),
+  note: varchar('note', { length: 255 }),
 });
 
 export const orderStateHistory = mysqlTable('order_state_history', {

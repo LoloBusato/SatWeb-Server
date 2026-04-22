@@ -9,6 +9,7 @@ import {
 import type { AuthService } from '../../application/services/AuthService';
 import type { OrderRepository } from '../../infrastructure/repositories/OrderRepository';
 import type { OrderStateHistoryRepository } from '../../infrastructure/repositories/OrderStateHistoryRepository';
+import type { OrderLocationHistoryRepository } from '../../infrastructure/repositories/OrderLocationHistoryRepository';
 import { NotFoundError, UnauthorizedError } from '../../domain/errors';
 
 const listQuerySchema = z.object({
@@ -26,9 +27,15 @@ const changeStateSchema = z.object({
   note: z.string().trim().max(255).nullable().optional(),
 });
 
+const transferSchema = z.object({
+  toBranchId: z.number().int().positive(),
+  note: z.string().trim().max(255).nullable().optional(),
+});
+
 export function ordersRouter(
   orderRepo: OrderRepository,
   historyRepo: OrderStateHistoryRepository,
+  locationHistoryRepo: OrderLocationHistoryRepository,
   authService: AuthService,
 ): Router {
   const r = Router();
@@ -169,6 +176,55 @@ export function ordersRouter(
         if (!existing) throw new NotFoundError('Orden');
 
         const items = await historyRepo.listByOrderId(id);
+        res.json({ items });
+      } catch (err) {
+        next(err);
+      }
+    },
+  );
+
+  r.post(
+    '/:id/transfer',
+    auth,
+    attachBranchFilter,
+    validate({ params: idParamSchema, body: transferSchema }),
+    async (req, res, next) => {
+      try {
+        if (!req.user) throw new UnauthorizedError();
+        const id = Number(req.params.id);
+        const branchFilter = req.branchFilter ?? null;
+
+        // Branch scope check (matches Fase 2.3 multi-tenancy OR: el user
+        // debe tener la orden originada o actualmente en su sucursal).
+        const existing = await orderRepo.findById(id, branchFilter);
+        if (!existing) throw new NotFoundError('Orden');
+
+        const updated = await orderRepo.transfer(
+          id,
+          req.body.toBranchId,
+          req.user.sub,
+          req.body.note ?? null,
+        );
+        res.json(updated);
+      } catch (err) {
+        next(err);
+      }
+    },
+  );
+
+  r.get(
+    '/:id/location-history',
+    auth,
+    attachBranchFilter,
+    validate({ params: idParamSchema }),
+    async (req, res, next) => {
+      try {
+        const id = Number(req.params.id);
+        const branchFilter = req.branchFilter ?? null;
+        const existing = await orderRepo.findById(id, branchFilter);
+        if (!existing) throw new NotFoundError('Orden');
+
+        const items = await locationHistoryRepo.listByOrderId(id);
         res.json({ items });
       } catch (err) {
         next(err);

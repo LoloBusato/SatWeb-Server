@@ -9,6 +9,7 @@ import { UserRepository } from './infrastructure/repositories/UserRepository';
 import { PermissionRepository } from './infrastructure/repositories/PermissionRepository';
 import { OrderRepository } from './infrastructure/repositories/OrderRepository';
 import { OrderStateHistoryRepository } from './infrastructure/repositories/OrderStateHistoryRepository';
+import { OrderLocationHistoryRepository } from './infrastructure/repositories/OrderLocationHistoryRepository';
 import { BranchSettingsRepository } from './infrastructure/repositories/BranchSettingsRepository';
 import { StateRepository } from './infrastructure/repositories/StateRepository';
 import { BranchRepository } from './infrastructure/repositories/BranchRepository';
@@ -63,6 +64,7 @@ export function createV2Router(): Router {
   const permRepo = new PermissionRepository(db);
   const orderRepo = new OrderRepository(db);
   const orderHistoryRepo = new OrderStateHistoryRepository(db);
+  const orderLocationHistoryRepo = new OrderLocationHistoryRepository(db);
   const stateRepo = new StateRepository(db);
   const branchRepo = new BranchRepository(db);
   const branchSettingsRepo = new BranchSettingsRepository(db);
@@ -70,7 +72,10 @@ export function createV2Router(): Router {
   const authService = new AuthService(userRepo, permRepo);
 
   r.use('/auth', authRouter(authService));
-  r.use('/orders', ordersRouter(orderRepo, orderHistoryRepo, authService));
+  r.use(
+    '/orders',
+    ordersRouter(orderRepo, orderHistoryRepo, orderLocationHistoryRepo, authService),
+  );
   r.use('/states', statesRouter(stateRepo, authService));
   r.use('/branches', branchesRouter(branchRepo, branchSettingsRepo, authService));
   r.use('/groups', groupsRouter(groupRepo, permRepo, authService));

@@ -1,4 +1,5 @@
-import { and, desc, eq, isNull, type SQL } from 'drizzle-orm';
+import { and, desc, eq, isNull, or, type SQL } from 'drizzle-orm';
+import { alias } from 'drizzle-orm/mysql-core';
 import type { MySql2Database } from 'drizzle-orm/mysql2';
 import { sql } from 'drizzle-orm';
 import * as schema from '../db/schema';
@@ -31,6 +32,8 @@ export interface OrderListItem {
   stateColor: string | null;
   branchId: number;
   branchName: string;
+  currentBranchId: number;
+  currentBranchName: string;
   createdAt: string;
   returnedAt: string | null;
 }
@@ -78,9 +81,19 @@ export class OrderRepository {
     branchId: number | null,
     opts: ListOrdersOptions,
   ): Promise<OrderListItem[]> {
+    const originBranch = alias(schema.branches, 'origin_branch');
+    const currentBranch = alias(schema.branches, 'current_branch');
+
     const conditions: SQL[] = [];
     if (branchId !== null) {
-      conditions.push(eq(schema.orders.branchId, branchId));
+      // Multi-tenancy Fase 2.3: el user ve órdenes ORIGINADAS en su sucursal
+      // O actualmente UBICADAS ahí. Eso permite al lab branch ver las órdenes
+      // recibidas de otra sucursal para reparación.
+      const branchOr = or(
+        eq(schema.orders.branchId, branchId),
+        eq(schema.orders.currentBranchId, branchId),
+      );
+      if (branchOr) conditions.push(branchOr);
     }
     if (opts.deliveredOnly === true) {
       conditions.push(sql`${schema.orders.returnedAt} IS NOT NULL`);
@@ -100,7 +113,9 @@ export class OrderRepository {
         stateName: schema.states.name,
         stateColor: schema.states.color,
         branchId: schema.orders.branchId,
-        branchName: schema.branches.name,
+        branchName: originBranch.name,
+        currentBranchId: schema.orders.currentBranchId,
+        currentBranchName: currentBranch.name,
         createdAt: schema.orders.createdAt,
         returnedAt: schema.orders.returnedAt,
       })
@@ -108,7 +123,8 @@ export class OrderRepository {
       .innerJoin(schema.clients, eq(schema.clients.id, schema.orders.clientId))
       .innerJoin(schema.devices, eq(schema.devices.id, schema.orders.deviceId))
       .innerJoin(schema.states, eq(schema.states.id, schema.orders.stateId))
-      .innerJoin(schema.branches, eq(schema.branches.id, schema.orders.branchId))
+      .innerJoin(originBranch, eq(originBranch.id, schema.orders.branchId))
+      .innerJoin(currentBranch, eq(currentBranch.id, schema.orders.currentBranchId))
       .where(whereClause)
       .orderBy(desc(schema.orders.id))
       .limit(opts.limit)
@@ -118,9 +134,16 @@ export class OrderRepository {
   }
 
   async findById(id: number, branchFilter: number | null): Promise<OrderDetail | null> {
+    const originBranch = alias(schema.branches, 'origin_branch');
+    const currentBranch = alias(schema.branches, 'current_branch');
+
     const conditions: SQL[] = [eq(schema.orders.id, id)];
     if (branchFilter !== null) {
-      conditions.push(eq(schema.orders.branchId, branchFilter));
+      const branchOr = or(
+        eq(schema.orders.branchId, branchFilter),
+        eq(schema.orders.currentBranchId, branchFilter),
+      );
+      if (branchOr) conditions.push(branchOr);
     }
 
     const rows = await this.db
@@ -134,7 +157,9 @@ export class OrderRepository {
         stateName: schema.states.name,
         stateColor: schema.states.color,
         branchId: schema.orders.branchId,
-        branchName: schema.branches.name,
+        branchName: originBranch.name,
+        currentBranchId: schema.orders.currentBranchId,
+        currentBranchName: currentBranch.name,
         createdAt: schema.orders.createdAt,
         returnedAt: schema.orders.returnedAt,
         problem: schema.orders.problem,
@@ -146,11 +171,69 @@ export class OrderRepository {
       .innerJoin(schema.clients, eq(schema.clients.id, schema.orders.clientId))
       .innerJoin(schema.devices, eq(schema.devices.id, schema.orders.deviceId))
       .innerJoin(schema.states, eq(schema.states.id, schema.orders.stateId))
-      .innerJoin(schema.branches, eq(schema.branches.id, schema.orders.branchId))
+      .innerJoin(originBranch, eq(originBranch.id, schema.orders.branchId))
+      .innerJoin(currentBranch, eq(currentBranch.id, schema.orders.currentBranchId))
       .where(and(...conditions))
       .limit(1);
 
     return rows[0] ?? null;
+  }
+
+  /**
+   * Transfiere físicamente un equipo a otra sucursal. Actualiza
+   * orders.current_branch_id (no toca branches_id que es el origen
+   * inmutable) y registra la transferencia en order_location_history en
+   * una transacción.
+   *
+   * El caller es responsable de haber validado branch scope vía findById
+   * + branchFilter antes de llamar acá.
+   */
+  async transfer(
+    orderId: number,
+    toBranchId: number,
+    transferredByUserId: number,
+    note: string | null,
+  ): Promise<OrderDetail> {
+    const orderRows = await this.db
+      .select({ currentBranchId: schema.orders.currentBranchId })
+      .from(schema.orders)
+      .where(eq(schema.orders.id, orderId))
+      .limit(1);
+    const order = orderRows[0];
+    if (!order) throw new NotFoundError('Orden');
+
+    if (order.currentBranchId === toBranchId) {
+      throw new ConflictError('La orden ya está en esa sucursal');
+    }
+
+    const branchRows = await this.db
+      .select({ id: schema.branches.id })
+      .from(schema.branches)
+      .where(and(eq(schema.branches.id, toBranchId), isNull(schema.branches.deletedAt)))
+      .limit(1);
+    if (branchRows.length === 0) {
+      throw new ConflictError('Sucursal destino inexistente o eliminada');
+    }
+
+    const fromBranchId = order.currentBranchId;
+
+    await this.db.transaction(async (tx) => {
+      await tx
+        .update(schema.orders)
+        .set({ currentBranchId: toBranchId })
+        .where(eq(schema.orders.id, orderId));
+      await tx.insert(schema.orderLocationHistory).values({
+        orderId,
+        fromBranchId,
+        toBranchId,
+        transferredBy: transferredByUserId,
+        note,
+      });
+    });
+
+    const updated = await this.findById(orderId, null);
+    if (!updated) throw new NotFoundError('Orden');
+    return updated;
   }
 
   /**
