@@ -2,11 +2,19 @@ import { Router } from 'express';
 import { z } from 'zod';
 import { validate } from '../middlewares/validate';
 import { requireAuth, attachBranchFilter } from '../middlewares/requireAuth';
+import { respondMaybeCsv, type CsvColumn } from '../helpers/csv';
 import type { AuthService } from '../../application/services/AuthService';
 import type {
   DashboardRepository,
   Granularity,
   PeriodPreset,
+  OrdersOverTimeBucket,
+  RevenueBucket,
+  RevenueBreakdownRow,
+  TopProblemItem,
+  BranchPerformanceRow,
+  PeriodSnapshot,
+  ProblemCountRow,
 } from '../../infrastructure/repositories/DashboardRepository';
 
 /**
@@ -31,16 +39,23 @@ const isoDate = z
   .regex(/^\d{4}-\d{2}-\d{2}$/, 'Formato esperado YYYY-MM-DD')
   .refine((s) => !isNaN(Date.parse(s + 'T00:00:00Z')), 'Fecha inválida');
 
+const formatEnum = z.enum(['json', 'csv']).optional();
+
 const dateRangeQuery = z
   .object({
     from: isoDate,
     to: isoDate,
     branchId: z.coerce.number().int().positive().optional(),
+    format: formatEnum,
   })
   .refine((q) => q.from <= q.to, { message: '`to` debe ser >= `from`', path: ['to'] });
 
 const granularityQuery = dateRangeQuery.and(
-  z.object({ granularity: z.enum(['day', 'week', 'month']).default('day') }),
+  z.object({
+    granularity: z.enum(['day', 'week', 'month']).default('day'),
+    // revenue: elegí qué dataset exportar como CSV (los 3 están en el JSON).
+    section: z.enum(['buckets', 'breakdown']).optional(),
+  }),
 );
 
 const topProblemsQuery = dateRangeQuery.and(
@@ -51,10 +66,15 @@ const periodCompareQuery = z.object({
   preset: z.enum(['week', 'month']),
   anchor: isoDate.optional(),
   branchId: z.coerce.number().int().positive().optional(),
+  format: formatEnum,
 });
 
 const problemDetailsQuery = dateRangeQuery.and(
-  z.object({ token: z.string().trim().min(1).max(60) }),
+  z.object({
+    token: z.string().trim().min(1).max(60),
+    // problem-details: elegí qué breakdown exportar como CSV.
+    section: z.enum(['byBrand', 'byState', 'byBranch']).optional(),
+  }),
 );
 
 function parseFrom(s: string): Date {
@@ -88,6 +108,57 @@ function resolveBranchScope(
   return queryBranchId ?? null;
 }
 
+// ======================== CSV column definitions ========================
+
+const ORDERS_OVER_TIME_COLUMNS: CsvColumn<OrdersOverTimeBucket>[] = [
+  { header: 'bucket', value: (r) => r.bucket },
+  { header: 'created', value: (r) => r.created },
+  { header: 'delivered', value: (r) => r.delivered },
+];
+
+const REVENUE_BUCKET_COLUMNS: CsvColumn<RevenueBucket>[] = [
+  { header: 'bucket', value: (r) => r.bucket },
+  { header: 'facturacion', value: (r) => r.facturacion },
+];
+
+const REVENUE_BREAKDOWN_COLUMNS: CsvColumn<RevenueBreakdownRow>[] = [
+  { header: 'ingreso', value: (r) => r.ingreso },
+  { header: 'egreso', value: (r) => r.egreso },
+  { header: 'count', value: (r) => r.count },
+  { header: 'total', value: (r) => r.total },
+];
+
+const TOP_PROBLEMS_COLUMNS: CsvColumn<TopProblemItem>[] = [
+  { header: 'token', value: (r) => r.token },
+  { header: 'count', value: (r) => r.count },
+];
+
+const BRANCH_PERFORMANCE_COLUMNS: CsvColumn<BranchPerformanceRow>[] = [
+  { header: 'branchId', value: (r) => r.branchId },
+  { header: 'branchName', value: (r) => r.branchName },
+  { header: 'ordersCreated', value: (r) => r.ordersCreated },
+  { header: 'ordersDelivered', value: (r) => r.ordersDelivered },
+  { header: 'avgDaysToDelivery', value: (r) => r.avgDaysToDelivery?.toFixed(2) ?? '' },
+  { header: 'deliveredWithin7Days', value: (r) => r.deliveredWithin7Days },
+  { header: 'deliveryRate', value: (r) => r.deliveryRate.toFixed(4) },
+];
+
+type PeriodCsvRow = PeriodSnapshot & { period: 'current' | 'previous' };
+const PERIOD_COMPARE_COLUMNS: CsvColumn<PeriodCsvRow>[] = [
+  { header: 'period', value: (r) => r.period },
+  { header: 'from', value: (r) => r.from },
+  { header: 'to', value: (r) => r.to },
+  { header: 'ordersCreated', value: (r) => r.ordersCreated },
+  { header: 'ordersDelivered', value: (r) => r.ordersDelivered },
+  { header: 'avgDaysToDelivery', value: (r) => r.avgDaysToDelivery?.toFixed(2) ?? '' },
+  { header: 'totalFacturacion', value: (r) => r.totalFacturacion },
+];
+
+const PROBLEM_COUNT_COLUMNS: CsvColumn<ProblemCountRow>[] = [
+  { header: 'key', value: (r) => r.key },
+  { header: 'count', value: (r) => r.count },
+];
+
 export function dashboardRouter(
   dashboardRepo: DashboardRepository,
   authService: AuthService,
@@ -114,13 +185,16 @@ export function dashboardRouter(
           q.granularity as Granularity,
         );
 
-        res.json({
-          from: q.from,
-          to: q.to,
-          branchFilter: branchId,
-          granularity: q.granularity,
-          buckets,
-        });
+        respondMaybeCsv(
+          req,
+          res,
+          { from: q.from, to: q.to, branchFilter: branchId, granularity: q.granularity, buckets },
+          {
+            filename: `orders-over-time-${q.from}-${q.to}.csv`,
+            rows: buckets,
+            columns: ORDERS_OVER_TIME_COLUMNS,
+          },
+        );
       } catch (err) {
         next(err);
       }
@@ -142,13 +216,29 @@ export function dashboardRouter(
           q.granularity as Granularity,
         );
 
-        res.json({
+        const jsonPayload = {
           from: q.from,
           to: q.to,
           branchFilter: branchId,
           granularity: q.granularity,
           ...result,
-        });
+        };
+
+        // Sección para CSV: por default `breakdown` (más útil para contabilidad).
+        // `section=buckets` exporta la serie temporal.
+        if ((q.section ?? 'breakdown') === 'buckets') {
+          respondMaybeCsv(req, res, jsonPayload, {
+            filename: `revenue-buckets-${q.from}-${q.to}.csv`,
+            rows: result.buckets,
+            columns: REVENUE_BUCKET_COLUMNS,
+          });
+        } else {
+          respondMaybeCsv(req, res, jsonPayload, {
+            filename: `revenue-breakdown-${q.from}-${q.to}.csv`,
+            rows: result.breakdown,
+            columns: REVENUE_BREAKDOWN_COLUMNS,
+          });
+        }
       } catch (err) {
         next(err);
       }
@@ -170,13 +260,16 @@ export function dashboardRouter(
           q.limit,
         );
 
-        res.json({
-          from: q.from,
-          to: q.to,
-          branchFilter: branchId,
-          limit: q.limit,
-          ...result,
-        });
+        respondMaybeCsv(
+          req,
+          res,
+          { from: q.from, to: q.to, branchFilter: branchId, limit: q.limit, ...result },
+          {
+            filename: `top-problems-${q.from}-${q.to}.csv`,
+            rows: result.items,
+            columns: TOP_PROBLEMS_COLUMNS,
+          },
+        );
       } catch (err) {
         next(err);
       }
@@ -199,7 +292,16 @@ export function dashboardRouter(
           branchId,
         });
 
-        res.json({ from: q.from, to: q.to, branchFilter: branchId, items });
+        respondMaybeCsv(
+          req,
+          res,
+          { from: q.from, to: q.to, branchFilter: branchId, items },
+          {
+            filename: `branch-performance-${q.from}-${q.to}.csv`,
+            rows: items,
+            columns: BRANCH_PERFORMANCE_COLUMNS,
+          },
+        );
       } catch (err) {
         next(err);
       }
@@ -223,7 +325,21 @@ export function dashboardRouter(
           branchId,
         });
 
-        res.json({ ...result, branchFilter: branchId });
+        const csvRows: PeriodCsvRow[] = [
+          { period: 'current', ...result.current },
+          { period: 'previous', ...result.previous },
+        ];
+
+        respondMaybeCsv(
+          req,
+          res,
+          { ...result, branchFilter: branchId },
+          {
+            filename: `period-compare-${q.preset}-${result.anchor}.csv`,
+            rows: csvRows,
+            columns: PERIOD_COMPARE_COLUMNS,
+          },
+        );
       } catch (err) {
         next(err);
       }
@@ -246,7 +362,26 @@ export function dashboardRouter(
           branchId,
         });
 
-        res.json({ from: q.from, to: q.to, branchFilter: branchId, ...result });
+        // Sección para CSV: byBranch por default (más útil para reportar por
+        // sucursal). byBrand/byState disponibles con ?section=X.
+        const section = q.section ?? 'byBranch';
+        const csvRows =
+          section === 'byBrand'
+            ? result.byBrand
+            : section === 'byState'
+              ? result.byState
+              : result.byBranch;
+
+        respondMaybeCsv(
+          req,
+          res,
+          { from: q.from, to: q.to, branchFilter: branchId, ...result },
+          {
+            filename: `problem-details-${q.token}-${section}.csv`,
+            rows: csvRows,
+            columns: PROBLEM_COUNT_COLUMNS,
+          },
+        );
       } catch (err) {
         next(err);
       }

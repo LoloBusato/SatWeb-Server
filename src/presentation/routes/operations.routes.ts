@@ -2,8 +2,16 @@ import { Router } from 'express';
 import { z } from 'zod';
 import { validate } from '../middlewares/validate';
 import { requireAuth, attachBranchFilter } from '../middlewares/requireAuth';
+import {
+  formatDateOnly,
+  respondMaybeCsv,
+  type CsvColumn,
+} from '../helpers/csv';
 import type { AuthService } from '../../application/services/AuthService';
-import type { OperationsRepository } from '../../infrastructure/repositories/OperationsRepository';
+import type {
+  OperationsRepository,
+  OperationItem,
+} from '../../infrastructure/repositories/OperationsRepository';
 
 /**
  * Rango de fechas inclusivo (from) / inclusivo (to) en el endpoint público.
@@ -15,6 +23,8 @@ const isoDate = z
   .regex(/^\d{4}-\d{2}-\d{2}$/, 'Formato esperado YYYY-MM-DD')
   .refine((s) => !isNaN(Date.parse(s + 'T00:00:00Z')), 'Fecha inválida');
 
+const formatEnum = z.enum(['json', 'csv']).optional();
+
 const operationsListQuery = z
   .object({
     from: isoDate.optional(),
@@ -23,6 +33,7 @@ const operationsListQuery = z
     query: z.string().trim().max(120).optional(),
     limit: z.coerce.number().int().min(1).max(200).default(50),
     offset: z.coerce.number().int().min(0).default(0),
+    format: formatEnum,
   })
   .refine((q) => !q.from || !q.to || q.from <= q.to, {
     message: '`to` debe ser >= `from`',
@@ -35,11 +46,25 @@ const operationsSummaryQuery = z
     to: isoDate.optional(),
     branchId: z.coerce.number().int().positive().optional(),
     query: z.string().trim().max(120).optional(),
+    format: formatEnum,
   })
   .refine((q) => !q.from || !q.to || q.from <= q.to, {
     message: '`to` debe ser >= `from`',
     path: ['to'],
   });
+
+const OPERATIONS_CSV_COLUMNS: CsvColumn<OperationItem>[] = [
+  { header: 'kind', value: (r) => r.kind },
+  { header: 'id', value: (r) => r.id },
+  { header: 'date', value: (r) => formatDateOnly(r.date) },
+  { header: 'branchId', value: (r) => r.branchId },
+  { header: 'branchName', value: (r) => r.branchName },
+  { header: 'label', value: (r) => r.label },
+  { header: 'clientName', value: (r) => r.clientName },
+  { header: 'deviceModel', value: (r) => r.deviceModel },
+  { header: 'repuestoName', value: (r) => r.repuestoName },
+  { header: 'esGarantia', value: (r) => (r.esGarantia == null ? '' : r.esGarantia === 1 ? 'sí' : 'no') },
+];
 
 function parseFrom(s: string | undefined): Date | null {
   if (!s) return null;
@@ -97,12 +122,21 @@ export function operationsRouter(
           offset: q.offset,
         });
 
-        res.json({
-          items: result.items,
-          total: result.total,
-          page: { limit: q.limit, offset: q.offset, count: result.items.length },
-          branchFilter: branchId,
-        });
+        respondMaybeCsv(
+          req,
+          res,
+          {
+            items: result.items,
+            total: result.total,
+            page: { limit: q.limit, offset: q.offset, count: result.items.length },
+            branchFilter: branchId,
+          },
+          {
+            filename: `operations-${q.from ?? 'all'}-${q.to ?? 'all'}.csv`,
+            rows: result.items,
+            columns: OPERATIONS_CSV_COLUMNS,
+          },
+        );
       } catch (err) {
         next(err);
       }
@@ -129,12 +163,20 @@ export function operationsRouter(
           query: q.query ?? null,
         });
 
-        res.json({
-          ...summary,
-          branchFilter: branchId,
-          from: q.from ?? null,
-          to: q.to ?? null,
-        });
+        respondMaybeCsv(
+          req,
+          res,
+          { ...summary, branchFilter: branchId, from: q.from ?? null, to: q.to ?? null },
+          {
+            filename: `operations-summary-${q.from ?? 'all'}-${q.to ?? 'all'}.csv`,
+            rows: [summary],
+            columns: [
+              { header: 'orderCount', value: (r) => r.orderCount },
+              { header: 'saleCount', value: (r) => r.saleCount },
+              { header: 'totalCount', value: (r) => r.totalCount },
+            ],
+          },
+        );
       } catch (err) {
         next(err);
       }
