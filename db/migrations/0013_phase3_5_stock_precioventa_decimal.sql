@@ -1,0 +1,23 @@
+-- 0013_phase3_5_stock_precioventa_decimal.sql
+-- Fase 3.5 — stock.precioVenta INT NULL → DECIMAL(15,2) NULL.
+--
+-- Monto monetario almacenado como entero: convertir a DECIMAL para soportar
+-- precios fraccionados (ej. 199.99) sin truncar. Los 19 valores existentes
+-- (12 positivos, 6 zeros, 1 negativo `-3`) son todos enteros → se conservan
+-- con `.00` agregado. El resto (3469) son NULL y se mantienen NULL.
+--
+-- La columna no es leída ni escrita por ningún código (legacy CRUD usa sólo
+-- `precio_compra`; v2 StockRepository ni la menciona; el frontend tampoco).
+-- Por eso el cambio de tipo es backward-compatible al 100% — MySQL acepta
+-- la conversión in-place y no rompe nada.
+--
+-- Se mantiene el nombre camelCase `precioVenta` — el rename a snake_case
+-- queda para Fase 3.7 (deferred hasta que muera el legacy).
+-- Precision 15,2 es la convención del proyecto (repuestos.precio_venta_sugerido
+-- usa DECIMAL(10,2); acá voy a 15 por consistencia con movimientos monetarios
+-- más grandes si alguna vez se usan — no hay sobrecosto).
+--
+-- Rollback:
+--   ALTER TABLE stock MODIFY COLUMN precioVenta INT DEFAULT NULL;
+
+ALTER TABLE stock MODIFY COLUMN precioVenta DECIMAL(15,2) DEFAULT NULL;
