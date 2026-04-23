@@ -24,8 +24,8 @@ export interface OrderListItem {
   branchName: string;
   currentBranchId: number;
   currentBranchName: string;
-  createdAt: string;
-  returnedAt: string | null;
+  createdAt: Date;
+  returnedAt: Date | null;
 }
 
 export interface OrderDetail extends OrderListItem {
@@ -54,15 +54,14 @@ export interface IncucaiEligibleItem extends PickupPendingItem {
 }
 
 /**
- * Formato d/m/yyyy para orders.returned_at (VARCHAR(11)). Replica el formato
- * que el frontend legacy escribe con `toLocaleString('en-IN', ...)`. Se
- * migra a DATETIME en Fase 3.
+ * Expresión SQL que devuelve el wall-clock de Buenos Aires. La convención
+ * del schema post-Fase 3 es guardar AR-local en DATETIME sin tz metadata
+ * (igual que hacía el trigger dual-write al parsear VARCHAR). Como la DB
+ * en Clever Cloud corre con `@@session.time_zone = SYSTEM` (UTC), hay que
+ * desfasar -3h explícitamente en cada write. El frontend helper extrae
+ * las partes literalmente del ISO sin volver a aplicar tz.
  */
-function formatDeliveryDate(now: Date = new Date()): string {
-  return now.toLocaleDateString('en-IN', {
-    timeZone: 'America/Argentina/Buenos_Aires',
-  });
-}
+const AR_NOW = sql`CONVERT_TZ(NOW(), '+00:00', '-03:00')`;
 
 export class OrderRepository {
   constructor(private readonly db: MySql2Database<typeof schema>) {}
@@ -376,9 +375,9 @@ export class OrderRepository {
     const newState = stateRows[0];
     if (!newState) throw new ConflictError('Estado inexistente o eliminado');
 
-    const updates: { stateId: number; returnedAt?: string } = { stateId: newStateId };
+    const updates: { stateId: number; returnedAt?: SQL } = { stateId: newStateId };
     if (newState.marksAsDelivered === 1 && !order.returnedAt) {
-      updates.returnedAt = formatDeliveryDate();
+      updates.returnedAt = AR_NOW;
     }
 
     const fromStateId = order.stateId;

@@ -13,15 +13,16 @@ router.post("/", (req, res) => {
 
       try {
         const qupdateStock = "UPDATE stockbranch SET `cantidad_restante` = ? WHERE stockbranchid = ?";
-        const qInsertReduceStock = "INSERT INTO reducestock (orderid, userid, stockbranch_id, date) VALUES (?, ?, ?, ?)";
-  
-        const { orderId, userId, stockbranchid, cantidad, fecha } = req.body;
-  
+        // Paso 3 Fase 3.4: reducestock.date ahora es DATETIME. fecha del body
+        // ignorada — server NOW() en AR local.
+        const qInsertReduceStock = "INSERT INTO reducestock (orderid, userid, stockbranch_id, date) VALUES (?, ?, ?, CONVERT_TZ(NOW(), '+00:00', '-03:00'))";
+
+        const { orderId, userId, stockbranchid, cantidad } = req.body;
+
         const values = [
         orderId,
         userId,
         stockbranchid,
-        fecha,
         ]
         db.query(qupdateStock, [cantidad,stockbranchid], (err, data) => {
           if (err) throw err

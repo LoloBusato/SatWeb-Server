@@ -6,16 +6,17 @@ const pool = require('../database/dbConfig');
 /*-----------------CREACION DE ORDENES DE TRABAJO--------------- */
 // create
 router.post("/", (req, res) => {
-  const { accesorios, branches_id, client_id, device_id, device_color, password, problem, serial, state_id, users_id, created_at } = req.body;
-  // current_branch_id se agrega repitiendo branches_id para cumplir con el NOT NULL
-  // introducido en la migración 0007 (Fase 2.3). Nacen en su sucursal de origen;
-  // las transferencias posteriores lo mueven via /api/v2/orders/:id/transfer.
+  const { accesorios, branches_id, client_id, device_id, device_color, password, problem, serial, state_id, users_id } = req.body;
+  // Paso 3 Fase 3.4: created_at ahora es DATETIME. El created_at del body se
+  // ignora — lo genera el server con CONVERT_TZ(NOW(), '+00:00', '-03:00')
+  // para mantener la convención AR-local wall-clock del schema. Ver
+  // comentario en src/infrastructure/repositories/OrderRepository.ts.
+  // current_branch_id se duplica desde branches_id (NOT NULL en 0007).
   const values = [
     client_id,
     device_id,
     branches_id,
     branches_id,
-    created_at,
     state_id,
     problem,
     password,
@@ -24,7 +25,7 @@ router.post("/", (req, res) => {
     users_id,
     device_color,
   ]
-  const qCreateOrder = "INSERT INTO orders (client_id, device_id, branches_id, current_branch_id, created_at, state_id, problem, password, accesorios, serial, users_id, device_color) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
+  const qCreateOrder = "INSERT INTO orders (client_id, device_id, branches_id, current_branch_id, created_at, state_id, problem, password, accesorios, serial, users_id, device_color) VALUES (?, ?, ?, ?, CONVERT_TZ(NOW(), '+00:00', '-03:00'), ?, ?, ?, ?, ?, ?, ?)";
   
   pool.getConnection((err, db) => {
     if (err) return res.status(500).send(err);
@@ -109,13 +110,14 @@ router.put("/:id", (req, res) => {
 // update
 router.put("/finalizar/:id", (req, res) => {
   const orderId = req.params.id;
-  const { fecha } = req.body;
-  const qupdateOrder = "UPDATE orders SET `returned_at` = ?, `state_id` = 6, `users_id` = 18 WHERE order_id = ?";
+  // Paso 3 Fase 3.4: returned_at ahora es DATETIME. Ignoramos el fecha
+  // del body y usamos server-side AR-local NOW().
+  const qupdateOrder = "UPDATE orders SET `returned_at` = CONVERT_TZ(NOW(), '+00:00', '-03:00'), `state_id` = 6, `users_id` = 18 WHERE order_id = ?";
 
   pool.getConnection((err, db) => {
     if (err) return res.status(500).send(err);
-    
-    db.query(qupdateOrder, [fecha, orderId], (err, data) => {
+
+    db.query(qupdateOrder, [orderId], (err, data) => {
       db.release()
       if (err) return res.status(500).send(err);
       return res.status(200).json(data)

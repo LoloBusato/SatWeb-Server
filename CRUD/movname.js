@@ -45,11 +45,18 @@ router.post('/movesSells', async (req, res) => {
   // array insertOrder) para cumplir con el NOT NULL agregado en la migración
   // 0007 (Fase 2.3). Ver CRUD/orders.js para el patrón análogo en el POST
   // directo de /api/orders.
-  const qCreateOrder = "INSERT INTO orders (client_id, device_id, branches_id, current_branch_id, created_at, returned_at, state_id, problem, password, accesorios, serial, users_id, device_color) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
+  //
+  // Paso 3 Fase 3.4: created_at y returned_at ahora son DATETIME. movesSells
+  // sí puede llevar fechas HISTÓRICAS (usuario elige desde el form del
+  // cliente legacy), así que parseamos el VARCHAR dd/m/yyyy via STR_TO_DATE
+  // en vez de pisar con NOW(). NULLIF(?, '') convierte returned_at vacío
+  // a NULL para preservar la nullability de la columna.
+  const qCreateOrder = "INSERT INTO orders (client_id, device_id, branches_id, current_branch_id, created_at, returned_at, state_id, problem, password, accesorios, serial, users_id, device_color) VALUES (?, ?, ?, ?, STR_TO_DATE(?, '%d/%m/%Y'), STR_TO_DATE(NULLIF(?, ''), '%d/%m/%Y'), ?, ?, ?, ?, ?, ?, ?)";
 
-  // Insertar repuestos
+  // Insertar repuestos. reducestock.date ahora DATETIME — parse del VARCHAR
+  // dd/m/yyyy HH:mm:ss que manda el cliente.
   const qupdateStock = "UPDATE stockbranch SET `cantidad_restante` = ? WHERE stockbranchid = ?";
-  const qInsertReduceStock = "INSERT INTO reducestock (orderid, userid, stockbranch_id, date) VALUES (?, ?, ?, ?)"
+  const qInsertReduceStock = "INSERT INTO reducestock (orderid, userid, stockbranch_id, date) VALUES (?, ?, ?, STR_TO_DATE(?, '%d/%m/%Y %H:%i:%s'))"
 
   // Insertar movname
   const qCreateMoveName= "INSERT INTO movname (ingreso, egreso, operacion, monto, fecha, userId, branch_id, order_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?)";
@@ -164,9 +171,12 @@ router.post('/movesRepairs', async (req, res) => {
         ];
         await db.execute(qCreateCobros, cobrosValuesArr);
   
-        // Reasignar la orden como entregada
+        // Reasignar la orden como entregada. Paso 3 Fase 3.4: returned_at
+        // ahora es DATETIME. fecha viene como "dd/m/yyyy HH:mm:ss" del
+        // cliente; tomamos sólo la parte fecha y la parseamos con STR_TO_DATE
+        // (movesRepairs sí puede llevar fecha histórica).
         if (entregarOrden) {
-          const qupdateOrder = "UPDATE orders SET `returned_at` = ?, `state_id` = 6, `users_id` = 18 WHERE order_id = ?";
+          const qupdateOrder = "UPDATE orders SET `returned_at` = STR_TO_DATE(?, '%d/%m/%Y'), `state_id` = 6, `users_id` = 18 WHERE order_id = ?";
           await db.execute(qupdateOrder, [fecha.split(' ')[0], order_id]);
         }
   

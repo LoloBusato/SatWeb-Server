@@ -188,8 +188,12 @@ describe('PATCH /api/v2/orders/:id/state', () => {
     expect(res.status).toBe(200);
     expect(res.body.stateId).toBe(entregadoStateId);
     expect(res.body.returnedAt).not.toBeNull();
-    // Formato d/m/yyyy o d/mm/yyyy — contiene al menos dos separadores /
-    expect(res.body.returnedAt).toMatch(/^\d{1,2}\/\d{1,2}\/\d{4}$/);
+    // Post-Fase 3.4: returnedAt es DATETIME, serializado como ISO
+    // (ej. '2026-04-23T00:00:00.000Z'). Verificamos que parsea a una Date
+    // cercana a now (tolerancia 1 día para tz-drift vs wall-clock AR).
+    const returnedAt = new Date(res.body.returnedAt).getTime();
+    expect(Number.isFinite(returnedAt)).toBe(true);
+    expect(Math.abs(returnedAt - Date.now())).toBeLessThan(24 * 60 * 60 * 1000);
 
     const afterRow = await queryOne<{ returned_at: string | null }>(
       `SELECT returned_at FROM orders WHERE order_id = ?`,

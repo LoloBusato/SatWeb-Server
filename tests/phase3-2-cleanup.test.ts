@@ -130,7 +130,7 @@ describe('Fase 3.2 — messages.orderId nullable + FK ON DELETE SET NULL', () =>
       withConn(async (conn) => {
         await conn.query(
           `INSERT INTO messages (message, username, created_at, orderId)
-           VALUES ('test fk', 'tester', '01/01/2026', 999999)`,
+           VALUES ('test fk', 'tester', NOW(), 999999)`,
         );
       }),
     );
@@ -140,7 +140,7 @@ describe('Fase 3.2 — messages.orderId nullable + FK ON DELETE SET NULL', () =>
     await withConn(async (conn) => {
       await conn.query(
         `INSERT INTO messages (message, username, created_at, orderId)
-         VALUES ('auditoría post-delete', 'tester', '01/01/2026', NULL)`,
+         VALUES ('auditoría post-delete', 'tester', NOW(), NULL)`,
       );
     });
     const row = await queryOne<{ cnt: number }>(
@@ -178,7 +178,7 @@ describe('Fase 3.2 — reducestock FKs con ON DELETE SET NULL', () => {
       withConn(async (conn) => {
         await conn.query(
           `INSERT INTO reducestock (orderid, userid, stockid, date)
-           SELECT o.order_id, u.idusers, 999999, '01/01/2026'
+           SELECT o.order_id, u.idusers, 999999, NOW()
            FROM orders o, users u WHERE u.deleted_at IS NULL LIMIT 1`,
         );
       }),
@@ -190,7 +190,7 @@ describe('Fase 3.2 — reducestock FKs con ON DELETE SET NULL', () => {
       withConn(async (conn) => {
         await conn.query(
           `INSERT INTO reducestock (orderid, userid, stockbranch_id, date)
-           SELECT o.order_id, u.idusers, 999999, '01/01/2026'
+           SELECT o.order_id, u.idusers, 999999, NOW()
            FROM orders o, users u WHERE u.deleted_at IS NULL LIMIT 1`,
         );
       }),

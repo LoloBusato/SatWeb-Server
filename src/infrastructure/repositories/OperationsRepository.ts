@@ -4,12 +4,12 @@ import * as schema from '../db/schema';
 
 /**
  * Operaciones completadas = flujo unificado de:
- *   - Órdenes entregadas (orders con returned_at_dt IS NOT NULL).
+ *   - Órdenes entregadas (orders con returned_at IS NOT NULL).
  *   - Ventas sueltas (reducestock con orderid IS NULL — stock reducido
  *     que no corresponde a una reparación sino a una venta directa).
  *
  * Fuente de las fechas: las columnas DATETIME agregadas en Fase 3.4
- * (orders.returned_at_dt, reducestock.date_dt). Por eso los filtros de
+ * (orders.returned_at, reducestock.`date`). Por eso los filtros de
  * rango son nativos y no dependen de STR_TO_DATE.
  *
  * Branch scoping:
@@ -58,9 +58,9 @@ export class OperationsRepository {
   constructor(private readonly db: MySql2Database<typeof schema>) {}
 
   private orderFilters(f: OperationsFilters): SQL[] {
-    const conds: SQL[] = [sql`o.returned_at_dt IS NOT NULL`];
-    if (f.from) conds.push(sql`o.returned_at_dt >= ${f.from}`);
-    if (f.to) conds.push(sql`o.returned_at_dt < ${f.to}`);
+    const conds: SQL[] = [sql`o.returned_at IS NOT NULL`];
+    if (f.from) conds.push(sql`o.returned_at >= ${f.from}`);
+    if (f.to) conds.push(sql`o.returned_at < ${f.to}`);
     if (f.branchId !== null) conds.push(sql`o.branches_id = ${f.branchId}`);
     if (f.query) {
       const q = `%${f.query}%`;
@@ -73,8 +73,8 @@ export class OperationsRepository {
 
   private saleFilters(f: OperationsFilters): SQL[] {
     const conds: SQL[] = [sql`rs.orderid IS NULL`];
-    if (f.from) conds.push(sql`rs.date_dt >= ${f.from}`);
-    if (f.to) conds.push(sql`rs.date_dt < ${f.to}`);
+    if (f.from) conds.push(sql`rs.\`date\` >= ${f.from}`);
+    if (f.to) conds.push(sql`rs.\`date\` < ${f.to}`);
     if (f.branchId !== null) conds.push(sql`sb.branch_id = ${f.branchId}`);
     if (f.query) {
       const q = `%${f.query}%`;
@@ -99,7 +99,7 @@ export class OperationsRepository {
       (SELECT
          'order' COLLATE utf8mb4_0900_ai_ci AS kind,
          o.order_id AS id,
-         o.returned_at_dt AS \`date\`,
+         o.returned_at AS \`date\`,
          o.branches_id AS branch_id,
          b.branch COLLATE utf8mb4_0900_ai_ci AS branch_name,
          CONCAT('Orden #', o.order_id) COLLATE utf8mb4_0900_ai_ci AS label,
@@ -116,7 +116,7 @@ export class OperationsRepository {
       (SELECT
          'sale' COLLATE utf8mb4_0900_ai_ci AS kind,
          rs.idreducestock AS id,
-         rs.date_dt AS \`date\`,
+         rs.\`date\` AS \`date\`,
          sb.branch_id,
          b.branch COLLATE utf8mb4_0900_ai_ci AS branch_name,
          r.repuesto COLLATE utf8mb4_0900_ai_ci AS label,
@@ -134,7 +134,7 @@ export class OperationsRepository {
 
     // Tiebreaker por (kind, id) para que la paginación sea determinista
     // cuando varias filas comparten `date` — frecuente con DATETIMEs a
-    // resolución de segundo y con orders.returned_at_dt a 00:00:00.
+    // resolución de segundo y con orders.returned_at a 00:00:00.
     const [rows] = (await this.db.execute(sql`
       SELECT * FROM (${unionSql}) u
       ORDER BY \`date\` DESC, kind ASC, id DESC

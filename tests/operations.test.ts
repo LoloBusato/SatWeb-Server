@@ -295,7 +295,7 @@ describe('GET /api/v2/operations/summary', () => {
     await withConn(async (conn) => {
       await conn.query(
         `INSERT INTO reducestock (orderid, userid, stockbranch_id, \`date\`)
-         VALUES (NULL, ?, ?, '23/4/2026 10:00:00')`,
+         VALUES (NULL, ?, ?, NOW())`,
         [ctx!.user_id, ctx!.sb_id],
       );
     });

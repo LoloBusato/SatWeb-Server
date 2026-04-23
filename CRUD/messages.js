@@ -7,15 +7,16 @@ const pool = require('../database/dbConfig');
 // CRUD de mensajes
 // create
 router.post('/', async (req, res) => {
-    const { username, message, orderId, created_at } = req.body;
-      
+    const { username, message, orderId } = req.body;
+
+    // Paso 3 Fase 3.4: created_at ahora es DATETIME. created_at del body
+    // ignorado — server NOW() en AR local.
     const values = [
       message,
       username,
-      created_at,
       orderId,
     ]
-    const qCreateNote = "INSERT INTO messages (message, username, created_at, orderId) VALUES (?, ?, ?, ?)";
+    const qCreateNote = "INSERT INTO messages (message, username, created_at, orderId) VALUES (?, ?, CONVERT_TZ(NOW(), '+00:00', '-03:00'), ?)";
     
     pool.getConnection((err, db) => {
       if (err) return res.status(500).send(err);

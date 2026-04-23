@@ -83,7 +83,10 @@ describe('Fase 3.1 — marks_as_delivered flag', () => {
     expect(res.status).toBe(200);
     expect(res.body.stateId).toBe(customStateId);
     expect(res.body.returnedAt).not.toBeNull();
-    expect(res.body.returnedAt).toMatch(/^\d{1,2}\/\d{1,2}\/\d{4}$/);
+    // Post-Fase 3.4: returnedAt es DATETIME serializado como ISO.
+    const returnedAt = new Date(res.body.returnedAt).getTime();
+    expect(Number.isFinite(returnedAt)).toBe(true);
+    expect(Math.abs(returnedAt - Date.now())).toBeLessThan(24 * 60 * 60 * 1000);
   });
 
   it('updateState a un estado NO flaggeado (aunque se llame similar) NO setea returned_at', async () => {
@@ -161,7 +164,7 @@ describe('Fase 3.1 — FKs sobre columnas con 0 huérfanos', () => {
           `INSERT INTO orders
              (client_id, device_id, branches_id, current_branch_id, state_id, users_id,
               created_at, problem)
-           SELECT c.idclients, d.iddevices, 1, 1, s.idstates, 999999, '01/01/2026', 'fk test'
+           SELECT c.idclients, d.iddevices, 1, 1, s.idstates, 999999, NOW(), 'fk test'
            FROM clients c, devices d, states s
            WHERE s.deleted_at IS NULL
            LIMIT 1`,
