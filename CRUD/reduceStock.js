@@ -53,7 +53,12 @@ router.post("/", (req, res) => {
 })
 // read
 router.get("/", (req, res) => {
-  const qgetStock = "SELECT *, stock.branch_id AS original_branch FROM reducestock JOIN users ON reducestock.userid = users.idusers JOIN stockbranch ON reducestock.stockbranch_id = stockbranch.stockbranchid JOIN stock ON stockbranch.stock_id = stock.idstock JOIN repuestos ON stock.repuesto_id = repuestos.idrepuestos JOIN proveedores ON stock.proveedor_id = proveedores.idproveedores ORDER BY STR_TO_DATE(reducestock.date, '%d/%m/%y') DESC;";
+  // ORDER BY usa reducestock.date_dt (DATETIME nativo, Fase 3.4) en vez de
+  // STR_TO_DATE sobre el VARCHAR. El trigger reducestock_date_before_insert
+  // mantiene ambas columnas en sincronía (0 mismatches en prod — migration 0016).
+  // Bonus: el formato viejo '%d/%m/%y' (2 dígitos de año) estaba mal vs el
+  // dato real '%d/%m/%Y' — con la columna DATETIME eso queda automático.
+  const qgetStock = "SELECT *, stock.branch_id AS original_branch FROM reducestock JOIN users ON reducestock.userid = users.idusers JOIN stockbranch ON reducestock.stockbranch_id = stockbranch.stockbranchid JOIN stock ON stockbranch.stock_id = stock.idstock JOIN repuestos ON stock.repuesto_id = repuestos.idrepuestos JOIN proveedores ON stock.proveedor_id = proveedores.idproveedores ORDER BY reducestock.date_dt DESC;";
   pool.getConnection((err, db) => {
     if (err) return res.status(500).send(err);
     
@@ -67,7 +72,8 @@ router.get("/", (req, res) => {
 // read
 router.get("/:id", (req, res) => {
   const stockId = req.params.id;
-  const qgetStock = "SELECT *, stock.branch_id AS original_branch FROM reducestock JOIN users ON reducestock.userid = users.idusers JOIN stockbranch ON reducestock.stockbranch_id = stockbranch.stockbranchid JOIN stock ON stockbranch.stock_id = stock.idstock JOIN repuestos ON stock.repuesto_id = repuestos.idrepuestos JOIN proveedores ON stock.proveedor_id = proveedores.idproveedores WHERE orderid = ? ORDER BY STR_TO_DATE(reducestock.date, '%d/%m/%y') DESC;";
+  // Ver comentario en GET / sobre reducestock.date_dt.
+  const qgetStock = "SELECT *, stock.branch_id AS original_branch FROM reducestock JOIN users ON reducestock.userid = users.idusers JOIN stockbranch ON reducestock.stockbranch_id = stockbranch.stockbranchid JOIN stock ON stockbranch.stock_id = stock.idstock JOIN repuestos ON stock.repuesto_id = repuestos.idrepuestos JOIN proveedores ON stock.proveedor_id = proveedores.idproveedores WHERE orderid = ? ORDER BY reducestock.date_dt DESC;";
   
   pool.getConnection((err, db) => {
     if (err) return res.status(500).send(err);

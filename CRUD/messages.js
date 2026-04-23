@@ -30,7 +30,11 @@ router.post('/', async (req, res) => {
   // read
   router.get("/:id", (req, res) => {
     const orderId = req.params.id;
-    const qgetNotes = "SELECT * FROM messages WHERE orderId = ? ORDER BY STR_TO_DATE(created_at, '%d/%m/%Y %H:%i:%s') ASC";
+    // ORDER BY usa created_at_dt (DATETIME nativo, Fase 3.4) en vez de
+    // STR_TO_DATE sobre el VARCHAR. Semánticamente equivalente porque el
+    // trigger mantiene ambas columnas en sincronía (0 mismatches en prod
+    // al momento del cambio — ver spot-checks de migration 0015).
+    const qgetNotes = "SELECT * FROM messages WHERE orderId = ? ORDER BY created_at_dt ASC";
     
     pool.getConnection((err, db) => {
       if (err) return res.status(500).send(err);
