@@ -194,8 +194,8 @@ export function ordersRouter(
         const id = Number(req.params.id);
         const branchFilter = req.branchFilter ?? null;
 
-        // Branch scope check (matches Fase 2.3 multi-tenancy OR: el user
-        // debe tener la orden originada o actualmente en su sucursal).
+        // Branch scope: el user debe tener la orden originada o actualmente
+        // en su sucursal (multi-tenancy OR, ver OrderRepository.listByBranch).
         const existing = await orderRepo.findById(id, branchFilter);
         if (!existing) throw new NotFoundError('Orden');
 

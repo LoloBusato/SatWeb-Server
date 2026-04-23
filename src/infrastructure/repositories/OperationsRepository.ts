@@ -8,14 +8,11 @@ import * as schema from '../db/schema';
  *   - Ventas sueltas (reducestock con orderid IS NULL — stock reducido
  *     que no corresponde a una reparación sino a una venta directa).
  *
- * Fuente de las fechas: las columnas DATETIME agregadas en Fase 3.4
- * (orders.returned_at, reducestock.`date`). Por eso los filtros de
- * rango son nativos y no dependen de STR_TO_DATE.
- *
  * Branch scoping:
- *   - orders: branches_id (origen). Replica el filtro del frontend legacy
- *     (Operaciones.js hace item.idbranches === branchId). Una variante
- *     futura podría considerar current_branch_id para lab branches.
+ *   - orders: filtramos por branches_id (sucursal origen). Replica el filtro
+ *     del frontend legacy (Operaciones.js). Una variante futura podría
+ *     considerar current_branch_id para que lab branches aparezcan en su
+ *     dashboard cuando reciben órdenes de otra sucursal.
  *   - sales: stockbranch.branch_id (sucursal donde ocurrió el consumo).
  */
 export interface OperationsFilters {

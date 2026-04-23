@@ -54,12 +54,11 @@ export interface IncucaiEligibleItem extends PickupPendingItem {
 }
 
 /**
- * Expresión SQL que devuelve el wall-clock de Buenos Aires. La convención
- * del schema post-Fase 3 es guardar AR-local en DATETIME sin tz metadata
- * (igual que hacía el trigger dual-write al parsear VARCHAR). Como la DB
- * en Clever Cloud corre con `@@session.time_zone = SYSTEM` (UTC), hay que
- * desfasar -3h explícitamente en cada write. El frontend helper extrae
- * las partes literalmente del ISO sin volver a aplicar tz.
+ * Expresión SQL que devuelve el wall-clock actual de Buenos Aires. La
+ * convención del schema es guardar AR-local en DATETIME sin tz metadata;
+ * como la DB en Clever Cloud corre con `@@session.time_zone = SYSTEM`
+ * (UTC), hay que desfasar -3h explícitamente en cada write. El frontend
+ * extrae las partes literalmente del ISO sin volver a aplicar tz.
  */
 const AR_NOW = sql`CONVERT_TZ(NOW(), '+00:00', '-03:00')`;
 
@@ -75,9 +74,9 @@ export class OrderRepository {
 
     const conditions: SQL[] = [];
     if (branchId !== null) {
-      // Multi-tenancy Fase 2.3: el user ve órdenes ORIGINADAS en su sucursal
-      // O actualmente UBICADAS ahí. Eso permite al lab branch ver las órdenes
-      // recibidas de otra sucursal para reparación.
+      // Multi-tenancy con OR: el user ve órdenes ORIGINADAS en su sucursal
+      // O actualmente UBICADAS ahí. Así, un lab branch que recibe órdenes
+      // por transferencia las ve en su listado aunque no sean de origen suyo.
       const branchOr = or(
         eq(schema.orders.branchId, branchId),
         eq(schema.orders.currentBranchId, branchId),
@@ -242,9 +241,8 @@ export class OrderRepository {
    * Sólo se consideran sucursales con branch_settings configurado; las que
    * no tienen config no aparecen (JOIN INNER con branch_settings).
    *
-   * Requiere `order_state_history`: órdenes que estaban en el estado antes
-   * de Fase 2.1 no tienen historial y quedan fuera hasta que su estado
-   * cambie por primera vez.
+   * Requiere `order_state_history`: una orden sin historial de transiciones
+   * queda fuera hasta que su estado cambie por primera vez.
    */
   async listPickupPending(branchFilter: number | null): Promise<PickupPendingItem[]> {
     const branchClause = branchFilter !== null

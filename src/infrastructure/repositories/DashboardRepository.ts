@@ -3,7 +3,7 @@ import type { MySql2Database } from 'drizzle-orm/mysql2';
 import * as schema from '../db/schema';
 
 /**
- * Fuente de las 4 métricas del dashboard de Fase 4 iter 2. Todas las queries
+ * Fuente de las métricas del dashboard de estadísticas. Todas las queries
  * son raw SQL via `sql` tag porque agregaciones y DATE_FORMAT bucketing son
  * más claros en SQL que en Drizzle DSL.
  *
@@ -12,13 +12,13 @@ import * as schema from '../db/schema';
  * Todos los filtros por rango de fecha son inclusive en `from`, exclusive
  * en `to` (el caller traduce "día final del rango" a `to = dayAfter`).
  *
- * Las fechas de `movname` siguen siendo VARCHAR dd/m/yyyy HH:MM:SS (movname
- * está fuera de scope del refactor de Fase 3.4). Por eso revenue() parsea
- * con STR_TO_DATE en el WHERE. Los 5808 rows en prod son 100% parseables
- * (verificado en la probe previa a esta iteración).
+ * Las fechas de `movname` son VARCHAR `dd/m/yyyy HH:MM:SS` — el refactor de
+ * fechas VARCHAR→DATETIME no tocó esa tabla por scope, así que revenue()
+ * parsea con STR_TO_DATE en el WHERE (100% parseable en prod).
  */
 
 export type Granularity = 'day' | 'week' | 'month';
+export type PeriodPreset = 'week' | 'month';
 
 export interface DashboardFilters {
   from: Date;
@@ -68,6 +68,53 @@ export interface BranchPerformanceRow {
   avgDaysToDelivery: number | null;
   deliveredWithin7Days: number;
   deliveryRate: number;
+}
+
+export interface PeriodKpis {
+  ordersCreated: number;
+  ordersDelivered: number;
+  avgDaysToDelivery: number | null;
+  totalFacturacion: number;
+}
+
+export interface PeriodSnapshot extends PeriodKpis {
+  from: string; // YYYY-MM-DD
+  to: string; // YYYY-MM-DD (inclusive — último día del período)
+}
+
+export interface PeriodDelta {
+  abs: number | null;
+  pct: number | null;
+}
+
+export interface PeriodCompareResult {
+  preset: PeriodPreset;
+  anchor: string;
+  current: PeriodSnapshot;
+  previous: PeriodSnapshot;
+  deltas: {
+    ordersCreated: PeriodDelta;
+    ordersDelivered: PeriodDelta;
+    avgDaysToDelivery: PeriodDelta;
+    totalFacturacion: PeriodDelta;
+  };
+}
+
+export interface ProblemCountRow {
+  key: string;
+  count: number;
+}
+
+export interface ProblemDetailsResult {
+  token: string;
+  totalOrders: number;
+  ordersDelivered: number;
+  avgDaysToDelivery: number | null;
+  deliveryRate: number;
+  byBrand: ProblemCountRow[];
+  byState: ProblemCountRow[];
+  byBranch: ProblemCountRow[];
+  samples: string[];
 }
 
 /**
@@ -335,4 +382,247 @@ export class DashboardRepository {
       };
     });
   }
+
+  /**
+   * Comparativo current vs previous para un preset (`week` o `month`) anclado
+   * a una fecha. Devuelve los 4 KPIs en cada período más sus deltas abs/pct.
+   *
+   * Rangos:
+   *   week  — lunes a domingo de la semana del anchor; previous = -7 días.
+   *   month — primer día del mes del anchor al primer día del mes siguiente;
+   *           previous = mes calendario anterior (puede tener 28-31 días).
+   *
+   * Los rangos se construyen con `new Date(y, m-1, d)` — Date local del
+   * proceso, pero con wall-clock explícito. mysql2 formatea al enviarlo
+   * usando la tz de Node; la DB compara strings literales contra sus
+   * DATETIMEs (que almacenan AR-local wall-clock). El roundtrip preserva
+   * el wall-clock sin importar la tz del proceso.
+   */
+  async periodCompare(opts: {
+    anchor: Date;
+    preset: PeriodPreset;
+    branchId: number | null;
+  }): Promise<PeriodCompareResult> {
+    const ranges = computePeriodRanges(opts.anchor, opts.preset);
+    const [currentKpis, previousKpis] = await Promise.all([
+      this.kpiSnapshot({ from: ranges.current.from, to: ranges.current.to, branchId: opts.branchId }),
+      this.kpiSnapshot({ from: ranges.previous.from, to: ranges.previous.to, branchId: opts.branchId }),
+    ]);
+    const current: PeriodSnapshot = {
+      from: formatDateOnly(ranges.current.from),
+      to: formatDateOnly(addDays(ranges.current.to, -1)),
+      ...currentKpis,
+    };
+    const previous: PeriodSnapshot = {
+      from: formatDateOnly(ranges.previous.from),
+      to: formatDateOnly(addDays(ranges.previous.to, -1)),
+      ...previousKpis,
+    };
+    return {
+      preset: opts.preset,
+      anchor: formatDateOnly(opts.anchor),
+      current,
+      previous,
+      deltas: {
+        ordersCreated: computeDelta(current.ordersCreated, previous.ordersCreated),
+        ordersDelivered: computeDelta(current.ordersDelivered, previous.ordersDelivered),
+        avgDaysToDelivery: computeDelta(current.avgDaysToDelivery, previous.avgDaysToDelivery),
+        totalFacturacion: computeDelta(current.totalFacturacion, previous.totalFacturacion),
+      },
+    };
+  }
+
+  private async kpiSnapshot(filters: DashboardFilters): Promise<PeriodKpis> {
+    const branchOrderClause =
+      filters.branchId !== null ? sql`AND branches_id = ${filters.branchId}` : sql``;
+    const branchMovnameClause =
+      filters.branchId !== null ? sql`AND branch_id = ${filters.branchId}` : sql``;
+
+    const parsedFecha = sql`STR_TO_DATE(fecha, '%d/%m/%Y %H:%i:%s')`;
+    const pairFilter = sql.join(
+      FACTURACION_PAIRS.map((p) => sql`(ingreso = ${p.ingreso} AND egreso = ${p.egreso})`),
+      sql` OR `,
+    );
+
+    const [
+      [createdRows],
+      [deliveredRows],
+      [facturacionRows],
+    ] = (await Promise.all([
+      this.db.execute(sql`
+        SELECT COUNT(*) AS cnt FROM orders
+        WHERE created_at >= ${filters.from} AND created_at < ${filters.to}
+          ${branchOrderClause}
+      `),
+      this.db.execute(sql`
+        SELECT COUNT(*) AS cnt,
+               AVG(TIMESTAMPDIFF(DAY, created_at, returned_at)) AS avg_days
+        FROM orders
+        WHERE returned_at IS NOT NULL
+          AND returned_at >= ${filters.from} AND returned_at < ${filters.to}
+          ${branchOrderClause}
+      `),
+      this.db.execute(sql`
+        SELECT COALESCE(SUM(monto), 0) AS total FROM movname
+        WHERE ${parsedFecha} >= ${filters.from} AND ${parsedFecha} < ${filters.to}
+          AND (${pairFilter})
+          ${branchMovnameClause}
+      `),
+    ])) as unknown as [
+      [Array<{ cnt: number }>, unknown],
+      [Array<{ cnt: number; avg_days: number | string | null }>, unknown],
+      [Array<{ total: number | string }>, unknown],
+    ];
+
+    return {
+      ordersCreated: Number(createdRows[0]?.cnt ?? 0),
+      ordersDelivered: Number(deliveredRows[0]?.cnt ?? 0),
+      avgDaysToDelivery:
+        deliveredRows[0]?.avg_days === null || deliveredRows[0]?.avg_days === undefined
+          ? null
+          : Number(deliveredRows[0].avg_days),
+      totalFacturacion: Number(facturacionRows[0]?.total ?? 0),
+    };
+  }
+
+  /**
+   * Deep-dive sobre un token de problema dentro de un rango + branch scope.
+   * Breakdown por marca, estado, sucursal + métricas de ciclo + 5 samples
+   * del texto real del `problem` para que el frontend muestre contexto.
+   *
+   * `orders.problem` usa collation utf8mb4_0900_ai_ci → LIKE es case y accent
+   * insensitive. `%` y `_` del token se escapan con `|` via ESCAPE para
+   * evitar wildcards accidentales.
+   */
+  async problemDetails(token: string, filters: DashboardFilters): Promise<ProblemDetailsResult> {
+    const branchClause =
+      filters.branchId !== null ? sql`AND o.branches_id = ${filters.branchId}` : sql``;
+    const likeValue = `%${escapeLike(token)}%`;
+    const whereClause = sql`
+      o.created_at >= ${filters.from} AND o.created_at < ${filters.to}
+      AND o.problem LIKE ${likeValue} ESCAPE '|'
+      ${branchClause}
+    `;
+
+    const [
+      [totals],
+      [byBrand],
+      [byState],
+      [byBranch],
+      [samples],
+    ] = (await Promise.all([
+      this.db.execute(sql`
+        SELECT COUNT(*) AS total,
+               SUM(CASE WHEN o.returned_at IS NOT NULL THEN 1 ELSE 0 END) AS delivered,
+               AVG(CASE WHEN o.returned_at IS NOT NULL
+                        THEN TIMESTAMPDIFF(DAY, o.created_at, o.returned_at) END) AS avg_days
+        FROM orders o
+        WHERE ${whereClause}
+      `),
+      this.db.execute(sql`
+        SELECT br.brand AS k, COUNT(*) AS cnt
+        FROM orders o
+        JOIN devices d ON d.iddevices = o.device_id
+        JOIN brands br ON br.brandid = d.brand_id
+        WHERE ${whereClause}
+        GROUP BY br.brand
+        ORDER BY cnt DESC
+      `),
+      this.db.execute(sql`
+        SELECT s.state AS k, COUNT(*) AS cnt
+        FROM orders o
+        JOIN states s ON s.idstates = o.state_id
+        WHERE ${whereClause}
+        GROUP BY s.state
+        ORDER BY cnt DESC
+      `),
+      this.db.execute(sql`
+        SELECT b.branch AS k, COUNT(*) AS cnt
+        FROM orders o
+        JOIN branches b ON b.idbranches = o.branches_id
+        WHERE ${whereClause}
+        GROUP BY b.branch
+        ORDER BY cnt DESC
+      `),
+      this.db.execute(sql`
+        SELECT o.problem AS p
+        FROM orders o
+        WHERE ${whereClause}
+        ORDER BY o.created_at DESC
+        LIMIT 5
+      `),
+    ])) as unknown as [
+      [Array<{ total: number; delivered: number; avg_days: number | string | null }>, unknown],
+      [Array<{ k: string; cnt: number }>, unknown],
+      [Array<{ k: string; cnt: number }>, unknown],
+      [Array<{ k: string; cnt: number }>, unknown],
+      [Array<{ p: string }>, unknown],
+    ];
+
+    const total = Number(totals[0]?.total ?? 0);
+    const delivered = Number(totals[0]?.delivered ?? 0);
+    return {
+      token,
+      totalOrders: total,
+      ordersDelivered: delivered,
+      avgDaysToDelivery:
+        totals[0]?.avg_days === null || totals[0]?.avg_days === undefined
+          ? null
+          : Number(totals[0].avg_days),
+      deliveryRate: total > 0 ? delivered / total : 0,
+      byBrand: byBrand.map((r) => ({ key: r.k, count: Number(r.cnt) })),
+      byState: byState.map((r) => ({ key: r.k, count: Number(r.cnt) })),
+      byBranch: byBranch.map((r) => ({ key: r.k, count: Number(r.cnt) })),
+      samples: samples.map((r) => r.p),
+    };
+  }
+}
+
+function computePeriodRanges(
+  anchor: Date,
+  preset: PeriodPreset,
+): { current: { from: Date; to: Date }; previous: { from: Date; to: Date } } {
+  if (preset === 'week') {
+    const day = anchor.getDay(); // 0=domingo ... 6=sábado
+    const daysToMonday = day === 0 ? 6 : day - 1;
+    const monday = new Date(anchor.getFullYear(), anchor.getMonth(), anchor.getDate() - daysToMonday);
+    const nextMonday = addDays(monday, 7);
+    const prevMonday = addDays(monday, -7);
+    return {
+      current: { from: monday, to: nextMonday },
+      previous: { from: prevMonday, to: monday },
+    };
+  }
+  // month
+  const first = new Date(anchor.getFullYear(), anchor.getMonth(), 1);
+  const nextFirst = new Date(anchor.getFullYear(), anchor.getMonth() + 1, 1);
+  const prevFirst = new Date(anchor.getFullYear(), anchor.getMonth() - 1, 1);
+  return {
+    current: { from: first, to: nextFirst },
+    previous: { from: prevFirst, to: first },
+  };
+}
+
+function addDays(d: Date, days: number): Date {
+  const out = new Date(d);
+  out.setDate(out.getDate() + days);
+  return out;
+}
+
+function formatDateOnly(d: Date): string {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const dd = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${dd}`;
+}
+
+function computeDelta(current: number | null, previous: number | null): PeriodDelta {
+  if (current === null || previous === null) return { abs: null, pct: null };
+  const abs = current - previous;
+  const pct = previous === 0 ? null : abs / previous;
+  return { abs, pct };
+}
+
+function escapeLike(v: string): string {
+  return v.replace(/[|%_]/g, (c) => '|' + c);
 }

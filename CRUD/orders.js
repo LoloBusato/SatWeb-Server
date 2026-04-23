@@ -7,11 +7,10 @@ const pool = require('../database/dbConfig');
 // create
 router.post("/", (req, res) => {
   const { accesorios, branches_id, client_id, device_id, device_color, password, problem, serial, state_id, users_id } = req.body;
-  // Paso 3 Fase 3.4: created_at ahora es DATETIME. El created_at del body se
-  // ignora — lo genera el server con CONVERT_TZ(NOW(), '+00:00', '-03:00')
-  // para mantener la convención AR-local wall-clock del schema. Ver
-  // comentario en src/infrastructure/repositories/OrderRepository.ts.
-  // current_branch_id se duplica desde branches_id (NOT NULL en 0007).
+  // created_at lo genera el server en AR-local wall-clock (CONVERT_TZ). El
+  // body podría traer created_at del cliente legacy, pero lo ignoramos — la
+  // fecha autoritativa es el momento del insert en DB.
+  // current_branch_id se duplica desde branches_id (ambos NOT NULL).
   const values = [
     client_id,
     device_id,
@@ -110,8 +109,8 @@ router.put("/:id", (req, res) => {
 // update
 router.put("/finalizar/:id", (req, res) => {
   const orderId = req.params.id;
-  // Paso 3 Fase 3.4: returned_at ahora es DATETIME. Ignoramos el fecha
-  // del body y usamos server-side AR-local NOW().
+  // Ignoramos el `fecha` del body; NOW() server-side en AR local evita que
+  // el cliente pueda pasarnos una fecha inconsistente al marcar entregada.
   const qupdateOrder = "UPDATE orders SET `returned_at` = CONVERT_TZ(NOW(), '+00:00', '-03:00'), `state_id` = 6, `users_id` = 18 WHERE order_id = ?";
 
   pool.getConnection((err, db) => {

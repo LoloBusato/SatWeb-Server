@@ -6,11 +6,9 @@ import type { AuthService } from '../../application/services/AuthService';
 import type { OperationsRepository } from '../../infrastructure/repositories/OperationsRepository';
 
 /**
- * Rango de fechas inclusivo (from) / exclusivo (to) en el endpoint público,
- * lo que da la semántica "todo el día `to`" sin preocuparse por horas. El
- * repo interpreta `to` como un DATETIME literal (start-of-day del día
- * siguiente) para no perder los eventos del último día en el filtro
- * date_dt < to.
+ * Rango de fechas inclusivo (from) / inclusivo (to) en el endpoint público.
+ * Internamente `to` se traduce al start-of-day del día siguiente para usarse
+ * como límite exclusivo y no perder los eventos del último día del rango.
  */
 const isoDate = z
   .string()

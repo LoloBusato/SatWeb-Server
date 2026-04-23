@@ -103,7 +103,7 @@ export const orderLocationHistory = mysqlTable('order_location_history', {
   note: varchar('note', { length: 255 }),
 });
 
-// Tablas de stock (declaración mínima — Fase 2.4 sólo lee repuesto + muta stockbranch).
+// Tablas de stock — declaración parcial, sólo las columnas que v2 referencia.
 export const repuestos = mysqlTable('repuestos', {
   id: int('idrepuestos').autoincrement().primaryKey(),
   name: varchar('repuesto', { length: 155 }).notNull(),

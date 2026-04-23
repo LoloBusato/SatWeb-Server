@@ -274,8 +274,7 @@ describe('GET /api/v2/operations/summary', () => {
       .send({ stateId: entregado!.id });
     expect(patchRes.status).toBe(200);
 
-    // El trigger BEFORE UPDATE debería haber seteado returned_at_dt; ahora
-    // la orden debe aparecer en el summary.
+    // La orden recién marcada como entregada debe aparecer en el summary.
     const after = await request(app)
       .get('/api/v2/operations/summary')
       .set('Authorization', `Bearer ${pruebaToken}`);
