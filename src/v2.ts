@@ -15,6 +15,7 @@ import { StockTransferRepository } from './infrastructure/repositories/StockTran
 import { RepuestoRepository } from './infrastructure/repositories/RepuestoRepository';
 import { StockRepository } from './infrastructure/repositories/StockRepository';
 import { OperationsRepository } from './infrastructure/repositories/OperationsRepository';
+import { DashboardRepository } from './infrastructure/repositories/DashboardRepository';
 import { StateRepository } from './infrastructure/repositories/StateRepository';
 import { BranchRepository } from './infrastructure/repositories/BranchRepository';
 import { GroupRepository } from './infrastructure/repositories/GroupRepository';
@@ -30,6 +31,7 @@ import { stockTransfersRouter } from './presentation/routes/stock-transfers.rout
 import { repuestosRouter } from './presentation/routes/repuestos.routes';
 import { stockRouter } from './presentation/routes/stock.routes';
 import { operationsRouter } from './presentation/routes/operations.routes';
+import { dashboardRouter } from './presentation/routes/dashboard.routes';
 import { internalRouter } from './presentation/routes/internal.routes';
 import { errorHandler } from './presentation/middlewares/errorHandler';
 
@@ -81,6 +83,7 @@ export function createV2Router(): Router {
   const repuestoRepo = new RepuestoRepository(db);
   const stockRepo = new StockRepository(db);
   const operationsRepo = new OperationsRepository(db);
+  const dashboardRepo = new DashboardRepository(db);
   const groupRepo = new GroupRepository(db);
   const authService = new AuthService(userRepo, permRepo);
 
@@ -98,6 +101,7 @@ export function createV2Router(): Router {
   r.use('/repuestos', repuestosRouter(repuestoRepo, authService));
   r.use('/stock', stockRouter(stockRepo, authService));
   r.use('/operations', operationsRouter(operationsRepo, authService));
+  r.use('/dashboard', dashboardRouter(dashboardRepo, authService));
   r.use('/internal', internalRouter(orderRepo, userRepo));
 
   r.use(errorHandler);
