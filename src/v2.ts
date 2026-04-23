@@ -14,6 +14,7 @@ import { BranchSettingsRepository } from './infrastructure/repositories/BranchSe
 import { StockTransferRepository } from './infrastructure/repositories/StockTransferRepository';
 import { RepuestoRepository } from './infrastructure/repositories/RepuestoRepository';
 import { StockRepository } from './infrastructure/repositories/StockRepository';
+import { OperationsRepository } from './infrastructure/repositories/OperationsRepository';
 import { StateRepository } from './infrastructure/repositories/StateRepository';
 import { BranchRepository } from './infrastructure/repositories/BranchRepository';
 import { GroupRepository } from './infrastructure/repositories/GroupRepository';
@@ -28,6 +29,7 @@ import { usersRouter } from './presentation/routes/users.routes';
 import { stockTransfersRouter } from './presentation/routes/stock-transfers.routes';
 import { repuestosRouter } from './presentation/routes/repuestos.routes';
 import { stockRouter } from './presentation/routes/stock.routes';
+import { operationsRouter } from './presentation/routes/operations.routes';
 import { internalRouter } from './presentation/routes/internal.routes';
 import { errorHandler } from './presentation/middlewares/errorHandler';
 
@@ -78,6 +80,7 @@ export function createV2Router(): Router {
   const stockTransferRepo = new StockTransferRepository(db);
   const repuestoRepo = new RepuestoRepository(db);
   const stockRepo = new StockRepository(db);
+  const operationsRepo = new OperationsRepository(db);
   const groupRepo = new GroupRepository(db);
   const authService = new AuthService(userRepo, permRepo);
 
@@ -94,6 +97,7 @@ export function createV2Router(): Router {
   r.use('/stock-transfers', stockTransfersRouter(stockTransferRepo, authService));
   r.use('/repuestos', repuestosRouter(repuestoRepo, authService));
   r.use('/stock', stockRouter(stockRepo, authService));
+  r.use('/operations', operationsRouter(operationsRepo, authService));
   r.use('/internal', internalRouter(orderRepo, userRepo));
 
   r.use(errorHandler);
