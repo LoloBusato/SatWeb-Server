@@ -18,6 +18,7 @@ export interface UpdateUserInput {
   groupId?: number;
   branchId?: number;
   userColor?: string | null;
+  enabled?: boolean;
 }
 
 function isDuplicateError(err: unknown): boolean {
@@ -91,12 +92,14 @@ export class UserRepository {
       groupId: number;
       branchId: number;
       userColor: string | null;
+      enabled: number;
     }> = {};
     if (input.username !== undefined) patch.username = input.username;
     if (input.passwordHash !== undefined) patch.passwordHash = input.passwordHash;
     if (input.groupId !== undefined) patch.groupId = input.groupId;
     if (input.branchId !== undefined) patch.branchId = input.branchId;
     if (input.userColor !== undefined) patch.userColor = input.userColor;
+    if (input.enabled !== undefined) patch.enabled = input.enabled ? 1 : 0;
 
     if (Object.keys(patch).length > 0) {
       try {

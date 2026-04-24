@@ -6,6 +6,10 @@ export function isUserActive(u: User): boolean {
   return u.deletedAt === null;
 }
 
+export function isUserEnabled(u: User): boolean {
+  return u.enabled === 1;
+}
+
 export function isBcryptHash(value: string): boolean {
   return value.length === 60 && value.startsWith('$2');
 }
@@ -16,6 +20,7 @@ export interface PublicUser {
   branchId: number;
   groupId: number;
   userColor: string | null;
+  enabled: boolean;
 }
 
 export function toPublicUser(u: User): PublicUser {
@@ -25,5 +30,6 @@ export function toPublicUser(u: User): PublicUser {
     branchId: u.branchId,
     groupId: u.groupId,
     userColor: u.userColor,
+    enabled: u.enabled === 1,
   };
 }

@@ -25,6 +25,7 @@ const updateSchema = z.object({
   groupId: z.number().int().positive().optional(),
   branchId: z.number().int().positive().optional(),
   userColor: z.string().max(45).nullable().optional(),
+  enabled: z.boolean().optional(),
 });
 
 export function usersRouter(

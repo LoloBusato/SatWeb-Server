@@ -14,7 +14,7 @@ router.post('/', (req, res) => {
   }
 
   const q =
-    'SELECT idusers, username, password, grupos_id, branch_id, permisos, grupo, user_color ' +
+    'SELECT idusers, username, password, grupos_id, branch_id, permisos, grupo, user_color, enabled ' +
     'FROM users ' +
     'JOIN branches ON users.branch_id = branches.idbranches ' +
     'JOIN grupousuarios ON users.grupos_id = grupousuarios.idgrupousuarios ' +
@@ -46,7 +46,15 @@ router.post('/', (req, res) => {
         return res.status(400).send('Creedenciales incorrectas');
       }
 
+      // Mismo patrón que /api/v2/auth/login: chequeamos `enabled` DESPUÉS
+      // de validar el password para no filtrar enumeración. Un user
+      // deshabilitado con password correcta ve un error claro.
+      if (row.enabled !== 1) {
+        return res.status(403).send('Usuario deshabilitado. Contactá al administrador.');
+      }
+
       delete row.password;
+      delete row.enabled;
       return res.status(200).send([row]);
     });
   });

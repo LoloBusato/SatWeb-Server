@@ -5,10 +5,12 @@ import { logger } from '../../config/logger';
 import {
   InvalidCredentialsError,
   UnauthorizedError,
+  UserDisabledError,
 } from '../../domain/errors';
 import {
   isBcryptHash,
   isUserActive,
+  isUserEnabled,
   toPublicUser,
   type PublicUser,
 } from '../../domain/entities/User';
@@ -65,6 +67,13 @@ export class AuthService {
 
     if (!ok) throw new InvalidCredentialsError();
 
+    // Chequeamos `enabled` DESPUÉS de validar el password para no filtrar
+    // enumeración de users deshabilitados. Un atacante sin las credenciales
+    // recibe InvalidCredentialsError igual que con un user inexistente.
+    if (!isUserEnabled(user)) {
+      throw new UserDisabledError();
+    }
+
     const permissions = await this.permRepo.listCodesByGroupId(user.groupId);
 
     const payload: SessionPayload = {
@@ -92,6 +101,7 @@ export class AuthService {
   ): Promise<void> {
     const user = await this.userRepo.findById(userId);
     if (!user || !isUserActive(user)) throw new UnauthorizedError();
+    if (!isUserEnabled(user)) throw new UserDisabledError();
 
     const ok = isBcryptHash(user.passwordHash)
       ? await bcrypt.compare(oldPlaintext, user.passwordHash)

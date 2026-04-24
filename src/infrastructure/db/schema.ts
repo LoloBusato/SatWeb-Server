@@ -17,6 +17,7 @@ export const users = mysqlTable('users', {
   groupId: int('grupos_id').notNull(),
   branchId: int('branch_id').notNull(),
   userColor: varchar('user_color', { length: 45 }).default('#374151'),
+  enabled: tinyint('enabled').notNull().default(1),
   deletedAt: datetime('deleted_at'),
 });
 
