@@ -68,7 +68,26 @@ router.post("/", (req, res) => {
   // read
   router.get("/:id", (req, res) => {
     const branchId = req.params.id;
-    const qgetStock = "SELECT *, stock.branch_id AS original_branch FROM stock JOIN repuestos ON stock.repuesto_id = repuestos.idrepuestos JOIN proveedores ON stock.proveedor_id = proveedores.idproveedores JOIN stockbranch ON stock.idstock = stockbranch.stock_id WHERE stockbranch.branch_id = ? ORDER BY repuesto";
+    // Columnas explícitas — antes era SELECT * que traía ~40 columnas (muchas
+    // pesadas y no usadas: descripcion TEXT, modelo, capacidad, porcentaje_bateria,
+    // etc.) dando payloads de ~2.7 MB por branch. Ahora ~13 columnas, ~500kb,
+    // evitando timeouts intermitentes de Vercel en cold starts y conexiones
+    // flojas. Lista derivada de un audit exhaustivo del frontend (Fase 4 —
+    // forense Network Error en Stock, 2026-04-24).
+    const qgetStock = `SELECT
+      stock.idstock, stock.cantidad, stock.precio_compra, stock.fecha_compra,
+      stock.cantidad_limite, stock.proveedor_id,
+      stock.branch_id AS original_branch,
+      repuestos.idrepuestos, repuestos.repuesto,
+      proveedores.nombre,
+      stockbranch.stockbranchid, stockbranch.branch_id,
+      stockbranch.cantidad_branch, stockbranch.cantidad_restante
+    FROM stock
+    JOIN repuestos ON stock.repuesto_id = repuestos.idrepuestos
+    JOIN proveedores ON stock.proveedor_id = proveedores.idproveedores
+    JOIN stockbranch ON stock.idstock = stockbranch.stock_id
+    WHERE stockbranch.branch_id = ?
+    ORDER BY repuesto`;
     
     pool.getConnection((err, db) => {
       if (err) return res.status(500).send(err);
@@ -83,7 +102,20 @@ router.post("/", (req, res) => {
 
   router.get("/distribute/:id", (req, res) => {
     const branchId = req.params.id;
-    const qgetStock = "SELECT *, stock.branch_id AS original_branch FROM stock JOIN repuestos ON stock.repuesto_id = repuestos.idrepuestos JOIN proveedores ON stock.proveedor_id = proveedores.idproveedores JOIN stockbranch ON stock.idstock = stockbranch.stock_id WHERE stockbranch.stock_id = ?";
+    // Misma lista explícita que el GET /:id — ver comentario arriba.
+    const qgetStock = `SELECT
+      stock.idstock, stock.cantidad, stock.precio_compra, stock.fecha_compra,
+      stock.cantidad_limite, stock.proveedor_id,
+      stock.branch_id AS original_branch,
+      repuestos.idrepuestos, repuestos.repuesto,
+      proveedores.nombre,
+      stockbranch.stockbranchid, stockbranch.branch_id,
+      stockbranch.cantidad_branch, stockbranch.cantidad_restante
+    FROM stock
+    JOIN repuestos ON stock.repuesto_id = repuestos.idrepuestos
+    JOIN proveedores ON stock.proveedor_id = proveedores.idproveedores
+    JOIN stockbranch ON stock.idstock = stockbranch.stock_id
+    WHERE stockbranch.stock_id = ?`;
     
     pool.getConnection((err, db) => {
       if (err) return res.status(500).send(err);
