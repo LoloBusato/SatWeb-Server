@@ -35,6 +35,14 @@ export class ForbiddenError extends DomainError {
   }
 }
 
+export class UserDisabledError extends DomainError {
+  readonly code = 'user_disabled';
+  readonly httpStatus = 403;
+  constructor(message = 'Usuario deshabilitado. Contactá al administrador.') {
+    super(message);
+  }
+}
+
 export class NotFoundError extends DomainError {
   readonly code = 'not_found';
   readonly httpStatus = 404;
@@ -46,8 +54,8 @@ export class NotFoundError extends DomainError {
 export class ConflictError extends DomainError {
   readonly code = 'conflict';
   readonly httpStatus = 409;
-  constructor(message: string) {
-    super(message);
+  constructor(message: string, details?: unknown) {
+    super(message, details);
   }
 }
 

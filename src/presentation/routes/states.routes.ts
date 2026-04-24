@@ -80,7 +80,8 @@ export function statesRouter(
     async (req, res, next) => {
       try {
         const id = Number(req.params.id);
-        await stateRepo.softDelete(id);
+        const force = req.query.force === 'true';
+        await stateRepo.softDelete(id, { force });
         res.status(204).end();
       } catch (err) {
         next(err);

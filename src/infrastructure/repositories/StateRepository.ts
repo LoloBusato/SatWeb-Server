@@ -1,9 +1,11 @@
-import { and, eq, isNull, sql } from 'drizzle-orm';
+import { and, eq, isNull, ne, sql } from 'drizzle-orm';
 import type { MySql2Database } from 'drizzle-orm/mysql2';
 import * as schema from '../db/schema';
 import { ConflictError, NotFoundError } from '../../domain/errors';
 
 export type State = typeof schema.states.$inferSelect;
+
+export type StateWithCount = State & { activeOrdersCount: number };
 
 export interface CreateStateInput {
   name: string;
@@ -15,15 +17,33 @@ export interface UpdateStateInput {
   color?: string | null;
 }
 
+// Estado interno usado como fallback cuando se elimina un estado que tiene
+// órdenes activas: las órdenes se reasignan acá y luego el estado original
+// se soft-deletea. No es editable ni visible en la UI de CRUD de estados.
+export const SIN_ESTADO_NAME = 'Sin estado';
+
 export class StateRepository {
   constructor(private readonly db: MySql2Database<typeof schema>) {}
 
-  async list(): Promise<State[]> {
-    return this.db
-      .select()
+  async list(): Promise<StateWithCount[]> {
+    const rows = await this.db
+      .select({
+        id: schema.states.id,
+        name: schema.states.name,
+        color: schema.states.color,
+        marksAsDelivered: schema.states.marksAsDelivered,
+        deletedAt: schema.states.deletedAt,
+        activeOrdersCount: sql<number>`(
+          SELECT COUNT(*) FROM orders
+          WHERE orders.state_id = ${schema.states.id}
+            AND orders.returned_at IS NULL
+        )`,
+      })
       .from(schema.states)
-      .where(isNull(schema.states.deletedAt))
+      .where(and(isNull(schema.states.deletedAt), ne(schema.states.name, SIN_ESTADO_NAME)))
       .orderBy(schema.states.name);
+
+    return rows.map((r) => ({ ...r, activeOrdersCount: Number(r.activeOrdersCount) }));
   }
 
   async findById(id: number): Promise<State | null> {
@@ -61,26 +81,78 @@ export class StateRepository {
     return row;
   }
 
-  async softDelete(id: number): Promise<void> {
+  /**
+   * Soft-delete de un estado. Dos modos:
+   *   - `force=false` (default): si hay órdenes activas (returned_at IS NULL)
+   *     usando el estado, tira ConflictError con `details.activeOrders = N`
+   *     para que el caller pida confirmación al usuario.
+   *   - `force=true`: en una sola transacción, reasigna las órdenes activas
+   *     al estado interno "Sin estado" (creándolo si no existe) y luego
+   *     soft-deletea el estado original.
+   *
+   * Nunca permite borrar "Sin estado" porque es el fallback del sistema.
+   */
+  async softDelete(id: number, options: { force?: boolean } = {}): Promise<void> {
     const existing = await this.findById(id);
     if (!existing) throw new NotFoundError('Estado');
 
-    // Bloquea el soft-delete si hay órdenes abiertas (returned_at IS NULL) con este estado.
-    // Las órdenes ya entregadas pueden conservar el estado histórico.
+    if (existing.name === SIN_ESTADO_NAME) {
+      throw new ConflictError(
+        'No se puede eliminar el estado interno "Sin estado" (fallback del sistema).',
+      );
+    }
+
     const result = await this.db
       .select({ count: sql<number>`COUNT(*)` })
       .from(schema.orders)
       .where(and(eq(schema.orders.stateId, id), isNull(schema.orders.returnedAt)));
-    const count = Number(result[0]?.count ?? 0);
-    if (count > 0) {
+    const activeOrders = Number(result[0]?.count ?? 0);
+
+    if (activeOrders === 0) {
+      await this.db
+        .update(schema.states)
+        .set({ deletedAt: new Date() })
+        .where(eq(schema.states.id, id));
+      return;
+    }
+
+    if (!options.force) {
       throw new ConflictError(
-        `El estado tiene ${count} orden(es) activa(s). Reasignarlas antes de eliminarlo.`,
+        `El estado tiene ${activeOrders} orden(es) activa(s). Confirmar reasignación a "Sin estado".`,
+        { activeOrders },
       );
     }
 
-    await this.db
-      .update(schema.states)
-      .set({ deletedAt: new Date() })
-      .where(eq(schema.states.id, id));
+    await this.db.transaction(async (tx) => {
+      // find-or-create "Sin estado" dentro de la tx. Si dos admins borran
+      // estados simultáneamente podría crearse duplicado — acepto el race
+      // porque es una operación admin-only muy poco frecuente.
+      const existingSin = await tx
+        .select()
+        .from(schema.states)
+        .where(and(eq(schema.states.name, SIN_ESTADO_NAME), isNull(schema.states.deletedAt)))
+        .limit(1);
+
+      let sinEstadoId: number;
+      if (existingSin.length > 0) {
+        sinEstadoId = existingSin[0].id;
+      } else {
+        const [inserted] = await tx
+          .insert(schema.states)
+          .values({ name: SIN_ESTADO_NAME, color: null })
+          .$returningId();
+        sinEstadoId = inserted.id;
+      }
+
+      await tx
+        .update(schema.orders)
+        .set({ stateId: sinEstadoId })
+        .where(and(eq(schema.orders.stateId, id), isNull(schema.orders.returnedAt)));
+
+      await tx
+        .update(schema.states)
+        .set({ deletedAt: new Date() })
+        .where(eq(schema.states.id, id));
+    });
   }
 }
