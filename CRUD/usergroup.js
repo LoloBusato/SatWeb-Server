@@ -23,11 +23,20 @@ router.post("/", (req, res) => {
 })
 // read
 router.get("/", (req, res) => {
-  const qgetUsers = "SELECT * FROM grupousuarios WHERE deleted_at IS NULL ORDER BY grupo";
+  const qgetUsers = `
+    SELECT g.*,
+      (SELECT COUNT(*) FROM users u
+       WHERE u.grupos_id = g.idgrupousuarios
+         AND u.deleted_at IS NULL
+         AND u.enabled = 1) AS activeUsersCount
+    FROM grupousuarios g
+    WHERE g.deleted_at IS NULL
+    ORDER BY g.grupo
+  `;
 
   pool.getConnection((err, db) => {
     if (err) return res.status(500).send(err);
-    
+
     db.query(qgetUsers, (err, data) => {
       db.release()
       if (err) return res.status(500).send(err);
