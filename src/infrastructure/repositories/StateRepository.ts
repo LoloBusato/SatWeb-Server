@@ -5,7 +5,7 @@ import { ConflictError, NotFoundError } from '../../domain/errors';
 
 export type State = typeof schema.states.$inferSelect;
 
-export type StateWithCount = State & { activeOrdersCount: number };
+export type StateWithCount = State & { ordersCount: number };
 
 export interface CreateStateInput {
   name: string;
@@ -33,17 +33,16 @@ export class StateRepository {
         color: schema.states.color,
         marksAsDelivered: schema.states.marksAsDelivered,
         deletedAt: schema.states.deletedAt,
-        activeOrdersCount: sql<number>`(
+        ordersCount: sql<number>`(
           SELECT COUNT(*) FROM orders
           WHERE orders.state_id = ${schema.states.id}
-            AND orders.returned_at IS NULL
         )`,
       })
       .from(schema.states)
       .where(and(isNull(schema.states.deletedAt), ne(schema.states.name, SIN_ESTADO_NAME)))
       .orderBy(schema.states.name);
 
-    return rows.map((r) => ({ ...r, activeOrdersCount: Number(r.activeOrdersCount) }));
+    return rows.map((r) => ({ ...r, ordersCount: Number(r.ordersCount) }));
   }
 
   async findById(id: number): Promise<State | null> {
