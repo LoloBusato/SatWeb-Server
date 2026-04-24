@@ -15,16 +15,25 @@ router.post("/", (req, res) => {
 
       try {
         const { repuesto_id, cantidad, precio_compra, proveedor_id, fecha_compra, cantidad_limite, branch_id } = req.body;
-        const qCreateStock = "INSERT INTO stock (repuesto_id, cantidad, precio_compra, proveedor_id, fecha_compra, cantidad_limite, branch_id) VALUES (?, ?, ?, ?, ?, ?, ?)";
-      
+        // `modelo` es NOT NULL sin DEFAULT en el schema. En strict mode (Clever
+        // Cloud MySQL 8), omitirlo hace fallar el INSERT con
+        // ER_NO_DEFAULT_FOR_FIELD, el callback tira el error que se pierde,
+        // y la Vercel function timeoutea (504). El frontend lo veía como
+        // "Network Error al cargar la pantalla de stock" y generaba drift
+        // contable porque movname+movements seguían insertándose con stockId
+        // undefined. Pasamos '' explícito para satisfacer strict sin cambiar
+        // el contenido semántico.
+        const qCreateStock = "INSERT INTO stock (repuesto_id, cantidad, precio_compra, proveedor_id, fecha_compra, cantidad_limite, branch_id, modelo) VALUES (?, ?, ?, ?, ?, ?, ?, ?)";
+
         const values = [
-          repuesto_id, 
-          cantidad, 
-          precio_compra, 
-          proveedor_id, 
+          repuesto_id,
+          cantidad,
+          precio_compra,
+          proveedor_id,
           fecha_compra,
           cantidad_limite,
-          branch_id
+          branch_id,
+          '',
         ]
         
         const qDistributeStock = "INSERT INTO stockbranch (stock_id, branch_id, cantidad_branch, cantidad_restante) VALUES (?, ?, ?, ?)"
