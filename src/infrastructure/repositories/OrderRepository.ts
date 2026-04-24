@@ -373,9 +373,45 @@ export class OrderRepository {
     const newState = stateRows[0];
     if (!newState) throw new ConflictError('Estado inexistente o eliminado');
 
-    const updates: { stateId: number; returnedAt?: SQL } = { stateId: newStateId };
+    const updates: { stateId: number; returnedAt?: SQL; usersId?: number } = { stateId: newStateId };
     if (newState.marksAsDelivered === 1 && !order.returnedAt) {
       updates.returnedAt = AR_NOW;
+    }
+
+    // Regla INCUCAI: cuando una orden entra al estado INCUCAI (manual o
+    // automático), la asignación de grupo se fuerza al grupo con permiso
+    // `branches:view_all` (el admin real). Si hay múltiples grupos con ese
+    // permiso, tomamos el que tenga al menos un user activo habilitado —
+    // de lo contrario la orden quedaría invisible para todos. Si no existe
+    // ningún grupo que califique, dejamos usersId como está (edge case:
+    // permiso des-granted o admin desactivado, no queremos romper la
+    // transición).
+    if (newState.name === 'INCUCAI') {
+      const adminRows = await this.db
+        .select({ id: schema.groups.id })
+        .from(schema.groups)
+        .innerJoin(
+          schema.groupPermissions,
+          eq(schema.groupPermissions.groupId, schema.groups.id),
+        )
+        .innerJoin(
+          schema.permissions,
+          eq(schema.permissions.id, schema.groupPermissions.permissionId),
+        )
+        .innerJoin(schema.users, eq(schema.users.groupId, schema.groups.id))
+        .where(
+          and(
+            eq(schema.permissions.code, 'branches:view_all'),
+            isNull(schema.groups.deletedAt),
+            isNull(schema.users.deletedAt),
+            eq(schema.users.enabled, 1),
+          ),
+        )
+        .orderBy(schema.groups.id)
+        .limit(1);
+      if (adminRows.length > 0) {
+        updates.usersId = adminRows[0].id;
+      }
     }
 
     const fromStateId = order.stateId;

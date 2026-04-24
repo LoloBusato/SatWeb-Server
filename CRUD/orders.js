@@ -120,29 +120,64 @@ router.get("/:id", (req, res) => {
   })
 })
 // update
+// Regla INCUCAI: si el técnico mueve la orden al estado INCUCAI, el grupo
+// asignado se fuerza al grupo con permiso v2 `branches:view_all` que tenga
+// al menos 1 user activo habilitado (el admin real). La elección del
+// dropdown de grupo se ignora en ese caso. Misma regla en v2
+// (OrderRepository.updateState) — aplica al archivado automático.
 router.put("/:id", (req, res) => {
   const orderId = req.params.id;
   const { accesorios, branches_id, device_id, password, problem, serial, state_id, users_id, device_color } = req.body;
-  const values = [
-    device_id, 
-    branches_id, 
-    state_id, 
-    problem, 
-    password, 
-    accesorios, 
-    serial, 
-    users_id,
-    device_color
-  ]
-  const qupdateOrder = "UPDATE orders SET `device_id` = ?, `branches_id` = ?,  `state_id` = ?, `problem` = ?, `password` = ?, `accesorios` = ?, `serial` = ?, `users_id` = ?, `device_color` = ? WHERE order_id = ?";
 
   pool.getConnection((err, db) => {
     if (err) return res.status(500).send(err);
-    
-    db.query(qupdateOrder, [...values,orderId], (err, data) => {
-      db.release()
-      if (err) return res.status(500).send(err);
-      return res.status(200).json(data)
+
+    const qLookup = `
+      SELECT
+        (SELECT idstates FROM states WHERE state = 'INCUCAI' AND deleted_at IS NULL LIMIT 1) AS incucai_id,
+        (SELECT g.idgrupousuarios
+         FROM grupousuarios g
+         JOIN group_permissions gp ON gp.group_id = g.idgrupousuarios
+         JOIN permissions p ON p.id = gp.permission_id
+         JOIN users u ON u.grupos_id = g.idgrupousuarios
+         WHERE p.code = 'branches:view_all'
+           AND g.deleted_at IS NULL
+           AND u.deleted_at IS NULL
+           AND u.enabled = 1
+         ORDER BY g.idgrupousuarios
+         LIMIT 1) AS admin_group_id
+    `;
+
+    db.query(qLookup, (errLookup, metaRows) => {
+      if (errLookup) {
+        db.release();
+        return res.status(500).send(errLookup);
+      }
+
+      const { incucai_id, admin_group_id } = metaRows[0] || {};
+      let finalUsersId = users_id;
+      if (incucai_id != null && Number(state_id) === Number(incucai_id) && admin_group_id != null) {
+        finalUsersId = admin_group_id;
+      }
+
+      const values = [
+        device_id,
+        branches_id,
+        state_id,
+        problem,
+        password,
+        accesorios,
+        serial,
+        finalUsersId,
+        device_color,
+      ];
+      const qupdateOrder = "UPDATE orders SET `device_id` = ?, `branches_id` = ?,  `state_id` = ?, `problem` = ?, `password` = ?, `accesorios` = ?, `serial` = ?, `users_id` = ?, `device_color` = ? WHERE order_id = ?";
+
+      db.query(qupdateOrder, [...values, orderId], (err, data) => {
+        db.release();
+        if (err) return res.status(500).send(err);
+        return res.status(200).json(data);
+      });
     });
   })
 })
