@@ -23,12 +23,18 @@ router.post("/", (req, res) => {
 })
 // read
 router.get("/", (req, res) => {
+  // Devolvemos 2 conteos por grupo: activos (enabled=1) y total (sin filtro
+  // por enabled). El grupo especial "USUARIOS DESHABILITADOS" muestra el
+  // total en la UI; el resto muestra activos. Ambos excluyen soft-deleted.
   const qgetUsers = `
     SELECT g.*,
       (SELECT COUNT(*) FROM users u
        WHERE u.grupos_id = g.idgrupousuarios
          AND u.deleted_at IS NULL
-         AND u.enabled = 1) AS activeUsersCount
+         AND u.enabled = 1) AS activeUsersCount,
+      (SELECT COUNT(*) FROM users u
+       WHERE u.grupos_id = g.idgrupousuarios
+         AND u.deleted_at IS NULL) AS totalUsersCount
     FROM grupousuarios g
     WHERE g.deleted_at IS NULL
     ORDER BY g.grupo
