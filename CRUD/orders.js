@@ -127,6 +127,33 @@ router.get("/incucai", (req, res) => {
   });
 })
 
+// Resuelve los 3 estados especiales (delivered/ready/incucai) con sus IDs
+// y nombres reales en una sola query, para que el frontend pinte labels
+// dinámicos (los checkboxes de Repairs.js no están más hardcodeados con
+// "Entregados", "Para retirar", "INCUCAI" — toman el state.state actual).
+router.get("/special-states", (req, res) => {
+  const q = `
+    SELECT
+      bs.delivered_state_id, ds.state AS delivered_name,
+      bs.ready_state_id,     rs.state AS ready_name,
+      bs.incucai_state_id,   ius.state AS incucai_name
+    FROM branch_settings bs
+    JOIN states ds  ON ds.idstates  = bs.delivered_state_id
+    JOIN states rs  ON rs.idstates  = bs.ready_state_id
+    JOIN states ius ON ius.idstates = bs.incucai_state_id
+    LIMIT 1
+  `;
+  pool.getConnection((err, db) => {
+    if (err) return res.status(500).send(err);
+    db.query(q, (err2, rows) => {
+      db.release();
+      if (err2) return res.status(500).send(err2);
+      if (!rows[0]) return res.status(500).send('branch_settings vacío');
+      return res.status(200).json(rows[0]);
+    });
+  });
+})
+
 router.get("/:id", (req, res) => {
   const orderId = req.params.id;
   const qgetOrders = "SELECT * FROM orders JOIN clients ON orders.client_id = clients.idclients JOIN devices ON orders.device_id = devices.iddevices JOIN brands ON devices.brand_id = brands.brandid JOIN types ON devices.type_id = types.typeid JOIN branches ON orders.branches_id = branches.idbranches JOIN states ON orders.state_id = states.idstates JOIN grupousuarios ON orders.users_id = grupousuarios.idgrupousuarios WHERE order_id = ?";
