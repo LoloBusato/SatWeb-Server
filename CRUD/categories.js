@@ -94,12 +94,27 @@ router.post('/', async (req, res) => {
     pool.getConnection((err, db) => {
       if (err) return res.status(500).send(err);
 
-      db.query("SELECT is_system_category, categories FROM movcategories WHERE idmovcategories = ?", [categoriesId], (errCheck, rows) => {
+      // Pre-check: 1) sistema → 409, 2) tiene movements asociados → 409.
+      // El movements.movcategories_id es FK con NO ACTION; sin este check
+      // el DELETE devolvería ER_ROW_IS_REFERENCED_2 crudo y el frontend lo
+      // silenciaba.
+      const qCheck = `
+        SELECT
+          mc.is_system_category,
+          mc.categories,
+          (SELECT COUNT(*) FROM movements mv WHERE mv.movcategories_id = mc.idmovcategories) AS movs
+        FROM movcategories mc WHERE mc.idmovcategories = ?
+      `;
+      db.query(qCheck, [categoriesId], (errCheck, rows) => {
         if (errCheck) { db.release(); return res.status(500).send(errCheck); }
         if (!rows[0]) { db.release(); return res.status(404).send('Categoría no encontrada'); }
         if (rows[0].is_system_category === 1) {
           db.release();
           return res.status(409).send(`No se puede eliminar la categoría "${rows[0].categories}" — es del sistema.`);
+        }
+        if (rows[0].movs > 0) {
+          db.release();
+          return res.status(409).send(`No se puede eliminar "${rows[0].categories}" — tiene ${rows[0].movs} movimiento(s) asociado(s).`);
         }
 
         const qdeleteCategories = "DELETE FROM movcategories WHERE idmovcategories = ?";
