@@ -31,7 +31,7 @@ export const SIN_ESTADO_NAME = 'Sin estado';
 export const PROTECTED_STATE_NAMES = new Set([
   'ENTREGADO',
   'INCUCAI',
-  'Cliente avisado para retirar',
+  'REPARADO CLIENTE AVISADO',
 ]);
 
 export class StateRepository {

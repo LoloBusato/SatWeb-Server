@@ -38,14 +38,14 @@ router.post("/", (req, res) => {
 })
 // read
 // Estados "archivados" — ocultos del listado principal. El flujo es:
-//   REPARADO → Cliente avisado para retirar → (cliente retira → ENTREGADO)
+//   REPARADO → REPARADO CLIENTE AVISADO → (cliente retira → ENTREGADO)
 //                                           → (90 días sin retiro → INCUCAI auto-archivado)
 // La lista principal solo muestra trabajo en curso; cada bucket tiene su
 // endpoint dedicado para el toggle del frontend (ver /orders/para-retirar,
 // /orders/entregados, /orders/incucai). Hardcodeamos por nombre manteniendo
 // el patrón existente de /entregados — la lógica automática (archivo +
 // conteos por sucursal) vive en v2 con branch_settings.
-const HIDDEN_STATES = ['ENTREGADO', 'Cliente avisado para retirar', 'INCUCAI'];
+const HIDDEN_STATES = ['ENTREGADO', 'REPARADO CLIENTE AVISADO', 'INCUCAI'];
 const BASE_ORDERS_SELECT = "SELECT * FROM orders JOIN clients ON orders.client_id = clients.idclients JOIN devices ON orders.device_id = devices.iddevices JOIN brands ON devices.brand_id = brands.brandid JOIN types ON devices.type_id = types.typeid JOIN branches ON orders.branches_id = branches.idbranches JOIN states ON orders.state_id = states.idstates JOIN grupousuarios ON orders.users_id = grupousuarios.idgrupousuarios";
 
 router.get("/", (req, res) => {
@@ -78,7 +78,7 @@ router.get("/entregados", (req, res) => {
 })
 
 router.get("/para-retirar", (req, res) => {
-  const qgetOrders = `${BASE_ORDERS_SELECT} WHERE state = 'Cliente avisado para retirar' ORDER BY order_id`;
+  const qgetOrders = `${BASE_ORDERS_SELECT} WHERE state = 'REPARADO CLIENTE AVISADO' ORDER BY order_id`;
 
   pool.getConnection((err, db) => {
     if (err) return res.status(500).send(err);
