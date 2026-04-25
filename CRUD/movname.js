@@ -192,7 +192,30 @@ router.post('/movesRepairs', async (req, res) => {
   // read
   router.get("/:id", (req, res) => {
     const moveId = req.params.id;
-    const qgetMovements = "SELECT idmovname, ingreso, egreso, operacion, monto, fecha, username, movname.order_id FROM movname JOIN users ON userId = idusers WHERE movname.branch_id = ? ORDER BY STR_TO_DATE(fecha, '%d/%m/%Y %H:%i:%s') DESC";
+    // Extendido para Libro Contable:
+    //   - es_dolar_ingreso/egreso + tipo_ingreso/egreso → moneda y clasificación
+    //     income/expense/transfer (LEFT JOIN movcategories por nombre).
+    //   - device_label (CONCAT brand + type + model) cuando order_id existe →
+    //     se appendea a "Cobro orden #X" en la UI.
+    const qgetMovements = `
+      SELECT idmovname, movname.ingreso, movname.egreso, operacion, monto, fecha,
+        users.username, movname.order_id,
+        mci.es_dolar AS es_dolar_ingreso,
+        mci.tipo     AS tipo_ingreso,
+        mce.es_dolar AS es_dolar_egreso,
+        mce.tipo     AS tipo_egreso,
+        TRIM(CONCAT_WS(' ', b.brand, t.type, d.model)) AS device_label
+      FROM movname
+      JOIN users ON movname.userId = users.idusers
+      LEFT JOIN movcategories mci ON mci.categories = movname.ingreso
+      LEFT JOIN movcategories mce ON mce.categories = movname.egreso
+      LEFT JOIN orders o  ON o.order_id = movname.order_id
+      LEFT JOIN devices d ON d.iddevices = o.device_id
+      LEFT JOIN brands b  ON b.brandid = d.brand_id
+      LEFT JOIN types t   ON t.typeid = d.type_id
+      WHERE movname.branch_id = ?
+      ORDER BY STR_TO_DATE(fecha, '%d/%m/%Y %H:%i:%s') DESC
+    `;
     
     pool.getConnection((err, db) => {
       if (err) return res.status(500).send(err);
