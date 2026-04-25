@@ -56,35 +56,60 @@ router.post('/', async (req, res) => {
     })
   })
   // update
+  // Bloqueamos rename/delete de categorías marcadas con is_system_category=1
+  // (10 categorías hardcodeadas por NOMBRE en Resumen.js + flujo de Cobro
+  // Sucursal). Si cambian, el cálculo de utilidad neta rompe en silencio
+  // (categoriesDicc[oldName] = undefined → NaN). Mismo patrón que el guard
+  // de PROTECTED_STATE_NAMES que tuvimos para estados (que ya removimos
+  // porque migramos estados a IDs — pero acá Resumen.js todavía matchea
+  // por nombre, así que el guard hace falta).
   router.put("/:id", (req, res) => {
     const categoriesId = req.params.id;
     const { categories, tipo, es_dolar } = req.body;
-    const qupdateCategories = "UPDATE movcategories SET `categories` = ?, `tipo` = ?, `es_dolar` WHERE idmovcategories = ?";
-    
+
     pool.getConnection((err, db) => {
       if (err) return res.status(500).send(err);
-      
-      db.query(qupdateCategories, [categories, tipo, es_dolar, categoriesId], (err, data) => {
-        db.release()
-        if (err) return res.status(500).send(err);
-        return res.status(200).json(data)
+
+      db.query("SELECT is_system_category, categories FROM movcategories WHERE idmovcategories = ?", [categoriesId], (errCheck, rows) => {
+        if (errCheck) { db.release(); return res.status(500).send(errCheck); }
+        if (!rows[0]) { db.release(); return res.status(404).send('Categoría no encontrada'); }
+        if (rows[0].is_system_category === 1) {
+          db.release();
+          return res.status(409).send(`No se puede editar la categoría "${rows[0].categories}" — el sistema referencia ese nombre en el cálculo financiero. Es de solo lectura.`);
+        }
+
+        const qupdateCategories = "UPDATE movcategories SET `categories` = ?, `tipo` = ?, `es_dolar` = ? WHERE idmovcategories = ?";
+        db.query(qupdateCategories, [categories, tipo, es_dolar, categoriesId], (err, data) => {
+          db.release();
+          if (err) return res.status(500).send(err);
+          return res.status(200).json(data);
+        });
       });
-    })
+    });
   })
   // delete
   router.delete("/:id", (req, res) => {
     const categoriesId = req.params.id;
-    const qdeleteCategories = " DELETE FROM movcategories WHERE idmovcategories = ? ";
-  
+
     pool.getConnection((err, db) => {
       if (err) return res.status(500).send(err);
-      
-      db.query(qdeleteCategories, [categoriesId], (err, data) => {
-        db.release()
-        if (err) return res.status(500).send(err);
-        return res.status(200).json(data)
+
+      db.query("SELECT is_system_category, categories FROM movcategories WHERE idmovcategories = ?", [categoriesId], (errCheck, rows) => {
+        if (errCheck) { db.release(); return res.status(500).send(errCheck); }
+        if (!rows[0]) { db.release(); return res.status(404).send('Categoría no encontrada'); }
+        if (rows[0].is_system_category === 1) {
+          db.release();
+          return res.status(409).send(`No se puede eliminar la categoría "${rows[0].categories}" — es del sistema.`);
+        }
+
+        const qdeleteCategories = "DELETE FROM movcategories WHERE idmovcategories = ?";
+        db.query(qdeleteCategories, [categoriesId], (err, data) => {
+          db.release();
+          if (err) return res.status(500).send(err);
+          return res.status(200).json(data);
+        });
       });
-    })
+    });
   })
 
   module.exports = router
