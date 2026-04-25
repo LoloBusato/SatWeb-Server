@@ -386,7 +386,16 @@ export class OrderRepository {
     // ningún grupo que califique, dejamos usersId como está (edge case:
     // permiso des-granted o admin desactivado, no queremos romper la
     // transición).
-    if (newState.name === 'INCUCAI') {
+    //
+    // Resolvemos el id de INCUCAI desde branch_settings (mismo valor en
+    // todas las sucursales activas hoy), no por nombre — los nombres son
+    // libremente renombrables.
+    const bsIncucai = await this.db
+      .select({ incucaiStateId: schema.branchSettings.incucaiStateId })
+      .from(schema.branchSettings)
+      .limit(1);
+    const incucaiStateId = bsIncucai[0]?.incucaiStateId;
+    if (incucaiStateId !== undefined && newStateId === incucaiStateId) {
       const adminRows = await this.db
         .select({ id: schema.groups.id })
         .from(schema.groups)

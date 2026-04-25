@@ -8,6 +8,7 @@ export type BranchSettings = typeof schema.branchSettings.$inferSelect;
 export interface UpsertBranchSettingsInput {
   readyStateId: number;
   incucaiStateId: number;
+  deliveredStateId: number;
   pickupReminderHours?: number;
   incucaiAfterDays?: number;
 }
@@ -36,6 +37,11 @@ export class BranchSettingsRepository {
         'readyStateId y incucaiStateId no pueden ser el mismo estado',
       );
     }
+    if (input.deliveredStateId === input.incucaiStateId || input.deliveredStateId === input.readyStateId) {
+      throw new ConflictError(
+        'deliveredStateId no puede coincidir con readyStateId ni incucaiStateId',
+      );
+    }
 
     const branch = await this.db
       .select({ id: schema.branches.id })
@@ -44,7 +50,7 @@ export class BranchSettingsRepository {
       .limit(1);
     if (branch.length === 0) throw new NotFoundError('Sucursal');
 
-    const stateIds = [input.readyStateId, input.incucaiStateId];
+    const stateIds = [input.readyStateId, input.incucaiStateId, input.deliveredStateId];
     const states = await this.db
       .select({ id: schema.states.id })
       .from(schema.states)
@@ -60,6 +66,7 @@ export class BranchSettingsRepository {
       branchId,
       readyStateId: input.readyStateId,
       incucaiStateId: input.incucaiStateId,
+      deliveredStateId: input.deliveredStateId,
       pickupReminderHours: input.pickupReminderHours ?? 48,
       incucaiAfterDays: input.incucaiAfterDays ?? 180,
     };
@@ -71,6 +78,7 @@ export class BranchSettingsRepository {
         set: {
           readyStateId: values.readyStateId,
           incucaiStateId: values.incucaiStateId,
+          deliveredStateId: values.deliveredStateId,
           pickupReminderHours: values.pickupReminderHours,
           incucaiAfterDays: values.incucaiAfterDays,
         },

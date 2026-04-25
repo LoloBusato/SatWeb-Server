@@ -167,6 +167,7 @@ export const branchSettings = mysqlTable('branch_settings', {
   pickupReminderHours: int('pickup_reminder_hours').default(48).notNull(),
   incucaiStateId: int('incucai_state_id').notNull(),
   incucaiAfterDays: int('incucai_after_days').default(180).notNull(),
+  deliveredStateId: int('delivered_state_id').notNull(),
   createdAt: datetime('created_at').default(sql`CURRENT_TIMESTAMP`).notNull(),
   updatedAt: datetime('updated_at').default(sql`CURRENT_TIMESTAMP`).notNull(),
 });

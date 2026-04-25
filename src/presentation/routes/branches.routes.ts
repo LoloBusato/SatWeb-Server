@@ -23,6 +23,7 @@ const updateSchema = createSchema.partial();
 const settingsSchema = z.object({
   readyStateId: z.number().int().positive(),
   incucaiStateId: z.number().int().positive(),
+  deliveredStateId: z.number().int().positive(),
   pickupReminderHours: z.number().int().min(1).max(24 * 365).optional(),
   incucaiAfterDays: z.number().int().min(1).max(365 * 10).optional(),
 });
