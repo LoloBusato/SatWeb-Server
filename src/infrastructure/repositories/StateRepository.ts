@@ -32,6 +32,7 @@ export class StateRepository {
         name: schema.states.name,
         color: schema.states.color,
         marksAsDelivered: schema.states.marksAsDelivered,
+        forcesAdminAssignment: schema.states.forcesAdminAssignment,
         deletedAt: schema.states.deletedAt,
         ordersCount: sql<number>`(
           SELECT COUNT(*) FROM orders

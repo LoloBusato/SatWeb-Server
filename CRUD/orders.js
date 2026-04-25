@@ -135,7 +135,7 @@ router.get("/incucai", (req, res) => {
 // override de PUT /:id) para que la UI pueda forzar visualmente la
 // asignación a Admin cuando se elige INCUCAI.
 router.get("/special-states", (req, res) => {
-  const q = `
+  const qMain = `
     SELECT
       bs.delivered_state_id, ds.state AS delivered_name,
       bs.ready_state_id,     rs.state AS ready_name,
@@ -160,13 +160,22 @@ router.get("/special-states", (req, res) => {
     JOIN states ius ON ius.idstates = bs.incucai_state_id
     LIMIT 1
   `;
+  // IDs de estados con flag forces_admin_assignment = 1 — el frontend los
+  // usa para activar el lock visual del dropdown "Asignar" → admin.
+  const qLocked = `SELECT idstates FROM states WHERE forces_admin_assignment = 1 AND deleted_at IS NULL`;
   pool.getConnection((err, db) => {
     if (err) return res.status(500).send(err);
-    db.query(q, (err2, rows) => {
-      db.release();
-      if (err2) return res.status(500).send(err2);
-      if (!rows[0]) return res.status(500).send('branch_settings vacío');
-      return res.status(200).json(rows[0]);
+    db.query(qMain, (err2, rows) => {
+      if (err2) { db.release(); return res.status(500).send(err2); }
+      if (!rows[0]) { db.release(); return res.status(500).send('branch_settings vacío'); }
+      db.query(qLocked, (err3, locked) => {
+        db.release();
+        if (err3) return res.status(500).send(err3);
+        return res.status(200).json({
+          ...rows[0],
+          admin_locked_state_ids: locked.map(r => r.idstates),
+        });
+      });
     });
   });
 })
@@ -186,11 +195,12 @@ router.get("/:id", (req, res) => {
   })
 })
 // update
-// Regla INCUCAI: si el técnico mueve la orden al estado INCUCAI, el grupo
-// asignado se fuerza al grupo con permiso v2 `branches:view_all` que tenga
-// al menos 1 user activo habilitado (el admin real). La elección del
-// dropdown de grupo se ignora en ese caso. Misma regla en v2
-// (OrderRepository.updateState) — aplica al archivado automático.
+// Regla genérica de admin lock: si el técnico mueve la orden a un estado
+// con states.forces_admin_assignment = 1 (hoy: INCUCAI y SOLUCIONA ADMIN),
+// el grupo se fuerza al grupo con permiso v2 `branches:view_all` que tenga
+// al menos 1 user activo habilitado. La elección del dropdown se ignora.
+// Misma regla en v2 OrderRepository.updateState — aplica al archivado
+// automático también.
 router.put("/:id", (req, res) => {
   const orderId = req.params.id;
   const { accesorios, branches_id, device_id, password, problem, serial, state_id, users_id, device_color } = req.body;
@@ -200,7 +210,7 @@ router.put("/:id", (req, res) => {
 
     const qLookup = `
       SELECT
-        (SELECT incucai_state_id FROM branch_settings LIMIT 1) AS incucai_id,
+        (SELECT forces_admin_assignment FROM states WHERE idstates = ? AND deleted_at IS NULL LIMIT 1) AS forces_admin,
         (SELECT g.idgrupousuarios
          FROM grupousuarios g
          JOIN group_permissions gp ON gp.group_id = g.idgrupousuarios
@@ -214,15 +224,15 @@ router.put("/:id", (req, res) => {
          LIMIT 1) AS admin_group_id
     `;
 
-    db.query(qLookup, (errLookup, metaRows) => {
+    db.query(qLookup, [state_id], (errLookup, metaRows) => {
       if (errLookup) {
         db.release();
         return res.status(500).send(errLookup);
       }
 
-      const { incucai_id, admin_group_id } = metaRows[0] || {};
+      const { forces_admin, admin_group_id } = metaRows[0] || {};
       let finalUsersId = users_id;
-      if (incucai_id != null && Number(state_id) === Number(incucai_id) && admin_group_id != null) {
+      if (forces_admin === 1 && admin_group_id != null) {
         finalUsersId = admin_group_id;
       }
 

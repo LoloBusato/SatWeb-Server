@@ -366,6 +366,7 @@ export class OrderRepository {
         id: schema.states.id,
         name: schema.states.name,
         marksAsDelivered: schema.states.marksAsDelivered,
+        forcesAdminAssignment: schema.states.forcesAdminAssignment,
       })
       .from(schema.states)
       .where(and(eq(schema.states.id, newStateId), isNull(schema.states.deletedAt)))
@@ -378,24 +379,16 @@ export class OrderRepository {
       updates.returnedAt = AR_NOW;
     }
 
-    // Regla INCUCAI: cuando una orden entra al estado INCUCAI (manual o
-    // automático), la asignación de grupo se fuerza al grupo con permiso
-    // `branches:view_all` (el admin real). Si hay múltiples grupos con ese
-    // permiso, tomamos el que tenga al menos un user activo habilitado —
-    // de lo contrario la orden quedaría invisible para todos. Si no existe
-    // ningún grupo que califique, dejamos usersId como está (edge case:
-    // permiso des-granted o admin desactivado, no queremos romper la
-    // transición).
+    // Regla genérica de admin lock: cuando una orden entra a cualquier
+    // estado con states.forces_admin_assignment = 1 (hoy: INCUCAI y
+    // SOLUCIONA ADMIN — declarado en migración 0021), el grupo se fuerza
+    // al admin (group con `branches:view_all` + ≥1 user activo enabled).
+    // Si no hay grupo que califique, dejamos usersId como venía (edge case:
+    // permiso des-granted o admin desactivado).
     //
-    // Resolvemos el id de INCUCAI desde branch_settings (mismo valor en
-    // todas las sucursales activas hoy), no por nombre — los nombres son
-    // libremente renombrables.
-    const bsIncucai = await this.db
-      .select({ incucaiStateId: schema.branchSettings.incucaiStateId })
-      .from(schema.branchSettings)
-      .limit(1);
-    const incucaiStateId = bsIncucai[0]?.incucaiStateId;
-    if (incucaiStateId !== undefined && newStateId === incucaiStateId) {
+    // El flag desacopla la lógica del nombre del estado — cualquier futuro
+    // estado se marca con un UPDATE y entra al lock sin tocar código.
+    if (newState.forcesAdminAssignment === 1) {
       const adminRows = await this.db
         .select({ id: schema.groups.id })
         .from(schema.groups)

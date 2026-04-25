@@ -41,6 +41,7 @@ export const states = mysqlTable('states', {
   name: varchar('state', { length: 155 }).notNull(),
   color: varchar('color', { length: 25 }),
   marksAsDelivered: tinyint('marks_as_delivered').notNull().default(0),
+  forcesAdminAssignment: tinyint('forces_admin_assignment').notNull().default(0),
   deletedAt: datetime('deleted_at'),
 });
 
