@@ -22,6 +22,18 @@ export interface UpdateStateInput {
 // se soft-deletea. No es editable ni visible en la UI de CRUD de estados.
 export const SIN_ESTADO_NAME = 'Sin estado';
 
+// Estados con nombre hardcodeado en otros lugares del sistema (legacy
+// CRUD/orders.js filtra /orders, /entregados, /para-retirar, /incucai por
+// nombre exacto; OrderRepository.updateState matchea 'INCUCAI' para la
+// regla de override de grupo). Renombrarlos rompería esos matchers en
+// silencio. Bloqueamos el rename desde StateRepository.update hasta que
+// hagamos el refactor a IDs en branch_settings + delivered_state_id.
+export const PROTECTED_STATE_NAMES = new Set([
+  'ENTREGADO',
+  'INCUCAI',
+  'Cliente avisado para retirar',
+]);
+
 export class StateRepository {
   constructor(private readonly db: MySql2Database<typeof schema>) {}
 
@@ -67,6 +79,16 @@ export class StateRepository {
   async update(id: number, input: UpdateStateInput): Promise<State> {
     const existing = await this.findById(id);
     if (!existing) throw new NotFoundError('Estado');
+
+    if (
+      input.name !== undefined &&
+      input.name !== existing.name &&
+      (PROTECTED_STATE_NAMES.has(existing.name) || PROTECTED_STATE_NAMES.has(input.name))
+    ) {
+      throw new ConflictError(
+        `No se puede renombrar el estado "${existing.name}" — el sistema referencia ese nombre en filtros legacy. Cambiá el color sin tocar el nombre.`,
+      );
+    }
 
     const patch: { name?: string; color?: string | null } = {};
     if (input.name !== undefined) patch.name = input.name;
