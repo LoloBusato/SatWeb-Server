@@ -131,12 +131,29 @@ router.get("/incucai", (req, res) => {
 // y nombres reales en una sola query, para que el frontend pinte labels
 // dinámicos (los checkboxes de Repairs.js no están más hardcodeados con
 // "Entregados", "Para retirar", "INCUCAI" — toman el state.state actual).
+// Incluye también el admin group (mismo lookup que la regla INCUCAI
+// override de PUT /:id) para que la UI pueda forzar visualmente la
+// asignación a Admin cuando se elige INCUCAI.
 router.get("/special-states", (req, res) => {
   const q = `
     SELECT
       bs.delivered_state_id, ds.state AS delivered_name,
       bs.ready_state_id,     rs.state AS ready_name,
-      bs.incucai_state_id,   ius.state AS incucai_name
+      bs.incucai_state_id,   ius.state AS incucai_name,
+      (SELECT g.idgrupousuarios FROM grupousuarios g
+       JOIN group_permissions gp ON gp.group_id = g.idgrupousuarios
+       JOIN permissions p ON p.id = gp.permission_id
+       JOIN users u ON u.grupos_id = g.idgrupousuarios
+       WHERE p.code = 'branches:view_all'
+         AND g.deleted_at IS NULL AND u.deleted_at IS NULL AND u.enabled = 1
+       ORDER BY g.idgrupousuarios LIMIT 1) AS admin_group_id,
+      (SELECT g.grupo FROM grupousuarios g
+       JOIN group_permissions gp ON gp.group_id = g.idgrupousuarios
+       JOIN permissions p ON p.id = gp.permission_id
+       JOIN users u ON u.grupos_id = g.idgrupousuarios
+       WHERE p.code = 'branches:view_all'
+         AND g.deleted_at IS NULL AND u.deleted_at IS NULL AND u.enabled = 1
+       ORDER BY g.idgrupousuarios LIMIT 1) AS admin_group_name
     FROM branch_settings bs
     JOIN states ds  ON ds.idstates  = bs.delivered_state_id
     JOIN states rs  ON rs.idstates  = bs.ready_state_id
