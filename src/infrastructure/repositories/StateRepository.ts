@@ -55,14 +55,48 @@ export class StateRepository {
     return rows[0] ?? null;
   }
 
-  async create(input: CreateStateInput): Promise<State> {
+  /**
+   * Crea o reactiva un estado por nombre. Casos:
+   *   - Existe activo (deletedAt IS NULL) → 409 ConflictError "duplicado".
+   *   - Existe soft-deleted → UPDATE deletedAt=NULL (+ color si vino en
+   *     el input) y devuelve { state, reactivated: true } para que el
+   *     route handler muestre el mensaje correcto.
+   *   - No existe → INSERT normal, { state, reactivated: false }.
+   *
+   * Match exacto por nombre (case-sensitive). Resuelve el problema clásico
+   * de borrar un estado por error y querer "recrearlo" — antes la base
+   * acumulaba filas soft-deleted con el mismo nombre y no se podía
+   * recrear sin tocar la DB.
+   */
+  async create(input: CreateStateInput): Promise<{ state: State; reactivated: boolean }> {
+    const existingRows = await this.db
+      .select()
+      .from(schema.states)
+      .where(eq(schema.states.name, input.name))
+      .limit(1);
+    const existing = existingRows[0];
+
+    if (existing && existing.deletedAt === null) {
+      throw new ConflictError(`Ya existe un estado con el nombre "${input.name}"`);
+    }
+
+    if (existing && existing.deletedAt !== null) {
+      // Reactivar — limpia deletedAt y opcionalmente actualiza color.
+      const patch: { deletedAt: null; color?: string | null } = { deletedAt: null };
+      if (input.color !== undefined) patch.color = input.color;
+      await this.db.update(schema.states).set(patch).where(eq(schema.states.id, existing.id));
+      const row = await this.findById(existing.id);
+      if (!row) throw new Error('Reactivation succeeded but row not found');
+      return { state: row, reactivated: true };
+    }
+
     const [inserted] = await this.db
       .insert(schema.states)
       .values({ name: input.name, color: input.color ?? null })
       .$returningId();
     const row = await this.findById(inserted.id);
     if (!row) throw new Error('Insert succeeded but row not found');
-    return row;
+    return { state: row, reactivated: false };
   }
 
   async update(id: number, input: UpdateStateInput): Promise<State> {

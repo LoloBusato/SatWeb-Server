@@ -49,8 +49,11 @@ export function statesRouter(
 
   r.post('/', auth, canManage, validate({ body: createSchema }), async (req, res, next) => {
     try {
-      const created = await stateRepo.create(req.body);
-      res.status(201).json(created);
+      const { state, reactivated } = await stateRepo.create(req.body);
+      // 200 si fue reactivación de un soft-deleted, 201 si fue creación nueva.
+      // El frontend usa `reactivated` para mostrar "Estado reactivado correctamente"
+      // en lugar de "estado agregado".
+      res.status(reactivated ? 200 : 201).json({ ...state, reactivated });
     } catch (err) {
       next(err);
     }
