@@ -247,7 +247,11 @@ router.put("/:id", (req, res) => {
         finalUsersId,
         device_color,
       ];
-      const qupdateOrder = "UPDATE orders SET `device_id` = ?, `branches_id` = ?,  `state_id` = ?, `problem` = ?, `password` = ?, `accesorios` = ?, `serial` = ?, `users_id` = ?, `device_color` = ? WHERE order_id = ?";
+      // state_changed_at se bumpea siempre — habilita el countdown "tiempo
+      // en este estado" del home de Atención al Cliente y el reset explícito
+      // de los plazos de re-alerta (acciones "No contestó / No llegó /
+      // No vino" mandan PUT con el mismo state_id, ver migration 0023).
+      const qupdateOrder = "UPDATE orders SET `device_id` = ?, `branches_id` = ?,  `state_id` = ?, `problem` = ?, `password` = ?, `accesorios` = ?, `serial` = ?, `users_id` = ?, `device_color` = ?, `state_changed_at` = CONVERT_TZ(NOW(), '+00:00', '-03:00') WHERE order_id = ?";
 
       db.query(qupdateOrder, [...values, orderId], (err, data) => {
         db.release();
@@ -268,6 +272,7 @@ router.put("/finalizar/:id", (req, res) => {
   const qupdateOrder = `
     UPDATE orders
     SET returned_at = CONVERT_TZ(NOW(), '+00:00', '-03:00'),
+        state_changed_at = CONVERT_TZ(NOW(), '+00:00', '-03:00'),
         state_id = (SELECT delivered_state_id FROM branch_settings LIMIT 1),
         users_id = 18
     WHERE order_id = ?

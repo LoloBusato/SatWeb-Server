@@ -90,6 +90,10 @@ export const orders = mysqlTable('orders', {
   usersId: int('users_id').notNull(),
   createdAt: datetime('created_at').notNull(),
   returnedAt: datetime('returned_at'),
+  // Anchor del countdown "tiempo en este estado" del home de Atención.
+  // Bump en cualquier UPDATE de orders (CRUD legacy + OrderRepository.updateState).
+  // Backfill inicial: COALESCE(returned_at, created_at) — ver migration 0023.
+  stateChangedAt: datetime('state_changed_at'),
   problem: varchar('problem', { length: 500 }).notNull(),
   serial: varchar('serial', { length: 45 }),
   deviceColor: varchar('device_color', { length: 30 }),

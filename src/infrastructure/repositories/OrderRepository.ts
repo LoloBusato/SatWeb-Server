@@ -374,7 +374,14 @@ export class OrderRepository {
     const newState = stateRows[0];
     if (!newState) throw new ConflictError('Estado inexistente o eliminado');
 
-    const updates: { stateId: number; returnedAt?: SQL; usersId?: number } = { stateId: newStateId };
+    // stateChangedAt: anchor del countdown del home de Atención al Cliente
+    // (ver migration 0023). v2 sólo entra acá cuando cambia el estado — la
+    // guarda de "ya está en ese estado" arriba descarta same-state — así que
+    // siempre bumpeamos sin condicional.
+    const updates: { stateId: number; returnedAt?: SQL; usersId?: number; stateChangedAt: SQL } = {
+      stateId: newStateId,
+      stateChangedAt: AR_NOW,
+    };
     if (newState.marksAsDelivered === 1 && !order.returnedAt) {
       updates.returnedAt = AR_NOW;
     }
