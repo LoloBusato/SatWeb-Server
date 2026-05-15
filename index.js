@@ -38,6 +38,8 @@ const categoriesRoutes = require('./CRUD/categories');
 const movementsRoutes = require('./CRUD/movements');
 const movnameRoutes = require('./CRUD/movname');
 const cobrosRoutes = require('./CRUD/cobros')
+// Textos persistentes (key-value) consumidos por assets estáticos.
+const savedTextsRoutes = require('./CRUD/savedTexts');
 
 // Usar rutas CRUD
 app.use('/api/users/login', loginRoutes);
@@ -71,6 +73,7 @@ app.use('/api/movcategories', categoriesRoutes);
 app.use('/api/movements', movementsRoutes);
 app.use('/api/movname', movnameRoutes);
 app.use('/api/cobros', cobrosRoutes);
+app.use('/api/saved-texts', savedTextsRoutes);
 
 // Mount /api/v2/* router (TypeScript backend, built to dist/ by `npm run build`).
 // Wrapped in try/catch so `node index.js` still works if dist/ is missing
