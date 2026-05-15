@@ -41,12 +41,25 @@ export function internalRouter(
         });
       }
 
-      const result = await orderRepo.archiveOverdue(null, systemUser.id);
+      // Paso 1: archivar REPARADO CLIENTE AVISADO → INCUCAI a partir de
+      // los días configurados por sucursal (existente).
+      const archived = await orderRepo.archiveOverdue(null, systemUser.id);
+      // Paso 2: orfanar (users_id = NULL) las órdenes que llevan ≥
+      // incucai_after_days en INCUCAI — agregado en mayo 2026 para
+      // representar "Propiedad de TheDoniPhone" en el tab INCUCAI del
+      // home admin. Idempotente (filtra por users_id IS NOT NULL).
+      const orphaned = await orderRepo.orphanIncucaiOverdue();
+
       req.log?.info(
-        { archived: result.archived, orderIds: result.orderIds },
+        {
+          archived: archived.archived,
+          archivedIds: archived.orderIds,
+          orphaned: orphaned.orphaned,
+          orphanedIds: orphaned.orderIds,
+        },
         'cron: archive-overdue-tick executed',
       );
-      res.json(result);
+      res.json({ archived, orphaned });
     } catch (err) {
       next(err);
     }

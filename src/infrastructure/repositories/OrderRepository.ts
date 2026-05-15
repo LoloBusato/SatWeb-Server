@@ -32,7 +32,8 @@ export interface OrderDetail extends OrderListItem {
   problem: string;
   serial: string | null;
   deviceColor: string | null;
-  usersId: number;
+  // Nullable a partir de migration 0024 (entregadas / INCUCAI orfanadas).
+  usersId: number | null;
 }
 
 export interface PickupPendingItem {
@@ -340,6 +341,40 @@ export class OrderRepository {
     return { archived: archived.length, orderIds: archived };
   }
 
+  /**
+   * Orfana las órdenes que llevan ≥ incucai_after_days en estado INCUCAI:
+   * SET users_id = NULL. Las "viejas" se vuelven propiedad de la empresa
+   * (en el frontend se renderizan como "Propiedad de TheDoniPhone"). No
+   * cambia el state_id ni state_changed_at — sólo libera la asignación.
+   *
+   * Diseñado para correr a continuación de archiveOverdue() dentro del
+   * mismo tick del cron (archive-overdue-tick). Idempotente: filtra por
+   * users_id IS NOT NULL así re-ejecutar no genera UPDATEs en órdenes ya
+   * orfanadas.
+   */
+  async orphanIncucaiOverdue(): Promise<{ orphaned: number; orderIds: number[] }> {
+    const [eligibleRows] = (await this.db.execute(sql`
+      SELECT o.order_id AS id
+      FROM orders o
+      JOIN branch_settings bs ON bs.branch_id = o.branches_id
+      WHERE o.state_id = bs.incucai_state_id
+        AND o.users_id IS NOT NULL
+        AND o.state_changed_at IS NOT NULL
+        AND o.state_changed_at <= NOW() - INTERVAL bs.incucai_after_days DAY
+    `)) as unknown as [Array<{ id: number }>];
+
+    if (eligibleRows.length === 0) {
+      return { orphaned: 0, orderIds: [] };
+    }
+
+    const ids = eligibleRows.map((r) => r.id);
+    await this.db.execute(sql`
+      UPDATE orders SET users_id = NULL WHERE order_id IN (${sql.join(ids, sql`, `)})
+    `);
+
+    return { orphaned: ids.length, orderIds: ids };
+  }
+
   async updateState(
     orderId: number,
     newStateId: number,
@@ -378,12 +413,21 @@ export class OrderRepository {
     // (ver migration 0023). v2 sólo entra acá cuando cambia el estado — la
     // guarda de "ya está en ese estado" arriba descarta same-state — así que
     // siempre bumpeamos sin condicional.
-    const updates: { stateId: number; returnedAt?: SQL; usersId?: number; stateChangedAt: SQL } = {
+    const updates: {
+      stateId: number;
+      returnedAt?: SQL;
+      usersId?: number | null;
+      stateChangedAt: SQL;
+    } = {
       stateId: newStateId,
       stateChangedAt: AR_NOW,
     };
     if (newState.marksAsDelivered === 1 && !order.returnedAt) {
       updates.returnedAt = AR_NOW;
+      // users_id = NULL al entregar: la orden ya no es problema de ningún
+      // grupo (migration 0024). Consistente con CRUD/orders.js
+      // /finalizar/:id legacy.
+      updates.usersId = null;
     }
 
     // Regla genérica de admin lock: cuando una orden entra a cualquier

@@ -87,7 +87,10 @@ export const orders = mysqlTable('orders', {
   branchId: int('branches_id').notNull(),
   currentBranchId: int('current_branch_id').notNull(),
   stateId: int('state_id').notNull(),
-  usersId: int('users_id').notNull(),
+  // Nullable a partir de migration 0024: NULL = "orden sin asignar"
+  // (entregadas, e INCUCAI orfanadas por cron). Ver migration 0024 para
+  // detalles del flujo.
+  usersId: int('users_id'),
   createdAt: datetime('created_at').notNull(),
   returnedAt: datetime('returned_at'),
   // Anchor del countdown "tiempo en este estado" del home de Atención.

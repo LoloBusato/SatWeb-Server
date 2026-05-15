@@ -221,16 +221,36 @@ router.put("/:id", (req, res) => {
            AND u.deleted_at IS NULL
            AND u.enabled = 1
          ORDER BY g.idgrupousuarios
-         LIMIT 1) AS admin_group_id
+         LIMIT 1) AS admin_group_id,
+        (SELECT bs.incucai_state_id
+         FROM branch_settings bs
+         JOIN orders o ON o.branches_id = bs.branch_id
+         WHERE o.order_id = ?
+         LIMIT 1) AS incucai_state_id,
+        (SELECT COUNT(*) FROM reducestock WHERE orderid = ?) AS repuestos_count
     `;
 
-    db.query(qLookup, [state_id], (errLookup, metaRows) => {
+    db.query(qLookup, [state_id, orderId, orderId], (errLookup, metaRows) => {
       if (errLookup) {
         db.release();
         return res.status(500).send(errLookup);
       }
 
-      const { forces_admin, admin_group_id } = metaRows[0] || {};
+      const { forces_admin, admin_group_id, incucai_state_id, repuestos_count } = metaRows[0] || {};
+
+      // Bloqueo: no se puede mandar a INCUCAI una orden con repuestos
+      // asignados. Catch-all server-side; el frontend hace un pre-check
+      // amigable pero éste es el safety net contra cualquier otro flujo
+      // (updateOrders.js, llamada manual, etc.). Match por
+      // branch_settings.incucai_state_id (rename-safe).
+      if (incucai_state_id != null && Number(state_id) === Number(incucai_state_id) && repuestos_count > 0) {
+        db.release();
+        return res.status(400).json({
+          error: 'ORDER_HAS_REPUESTOS',
+          message: `No se puede enviar a INCUCAI: la orden tiene ${repuestos_count} repuesto(s) asignado(s). Retirá los repuestos antes de continuar.`,
+        });
+      }
+
       let finalUsersId = users_id;
       if (forces_admin === 1 && admin_group_id != null) {
         finalUsersId = admin_group_id;
@@ -269,12 +289,15 @@ router.put("/finalizar/:id", (req, res) => {
   // state_id resuelto desde branch_settings.delivered_state_id (antes era
   // hardcoded 6) para no acoplar a un id particular si el usuario reordena
   // o cambia el estado canónico de "entregado".
+  // users_id = NULL al entregar: la orden ya no es problema de ningún grupo
+  // (migration 0024). Antes era hardcoded 18; ahora la columna acepta NULL
+  // y el frontend muestra "Propiedad de TheDoniPhone" en ese caso.
   const qupdateOrder = `
     UPDATE orders
     SET returned_at = CONVERT_TZ(NOW(), '+00:00', '-03:00'),
         state_changed_at = CONVERT_TZ(NOW(), '+00:00', '-03:00'),
         state_id = (SELECT delivered_state_id FROM branch_settings LIMIT 1),
-        users_id = 18
+        users_id = NULL
     WHERE order_id = ?
   `;
 
