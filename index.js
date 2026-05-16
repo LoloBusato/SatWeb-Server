@@ -40,6 +40,8 @@ const movnameRoutes = require('./CRUD/movname');
 const cobrosRoutes = require('./CRUD/cobros')
 // Textos persistentes (key-value) consumidos por assets estáticos.
 const savedTextsRoutes = require('./CRUD/savedTexts');
+// Cron interno: sampler de Threads_connected (evaluación migración plan free).
+const connectionMonitorRoutes = require('./CRUD/connectionMonitor');
 
 // Usar rutas CRUD
 app.use('/api/users/login', loginRoutes);
@@ -74,6 +76,7 @@ app.use('/api/movements', movementsRoutes);
 app.use('/api/movname', movnameRoutes);
 app.use('/api/cobros', cobrosRoutes);
 app.use('/api/saved-texts', savedTextsRoutes);
+app.use('/api/internal/connection-monitor', connectionMonitorRoutes);
 
 // Mount /api/v2/* router (TypeScript backend, built to dist/ by `npm run build`).
 // Wrapped in try/catch so `node index.js` still works if dist/ is missing

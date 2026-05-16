@@ -12,6 +12,7 @@
         }
     ],
     "crons": [
-        { "path": "/api/v2/internal/archive-overdue-tick", "schedule": "0 6 * * *" }
+        { "path": "/api/v2/internal/archive-overdue-tick", "schedule": "0 6 * * *" },
+        { "path": "/api/internal/connection-monitor/tick", "schedule": "*/5 * * * *" }
     ]
 }
