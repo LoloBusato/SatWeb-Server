@@ -51,16 +51,20 @@ router.get("/", (req, res) => {
   })
 })
 // update
+// FIX mayo 2026: antes hacía `const [grupo, permisos] = req.body` (array
+// destructure) — falla con TypeError porque req.body es un object JSON, no
+// un array. Nunca había andado desde el frontend; ahora el screen de
+// CreateGroups envía { grupo, permisos } y este handler lo recibe bien.
 router.put("/:id", (req, res) => {
   const userId = req.params.id;
-  const [grupo, permisos] = req.body
+  const { grupo, permisos } = req.body
   const qupdateUser = "UPDATE grupousuarios SET `grupo`= ?, `permisos`= ? WHERE idgrupousuarios = ?";
 
-  const values = [grupo,permisos];
+  const values = [grupo, permisos];
 
   pool.getConnection((err, db) => {
     if (err) return res.status(500).send(err);
-    
+
     db.query(qupdateUser, [...values,userId], (err, data) => {
       db.release()
       if (err) return res.status(500).send(err);
