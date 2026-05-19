@@ -100,6 +100,11 @@ export const orders = mysqlTable('orders', {
   problem: varchar('problem', { length: 500 }).notNull(),
   serial: varchar('serial', { length: 45 }),
   deviceColor: varchar('device_color', { length: 30 }),
+  // Pre-Venta (mayo 2026): orden creada con depósito previo al retiro.
+  // es_preventa flag, precio_venta acordado, color escrito a mano.
+  esPreventa: tinyint('es_preventa').notNull().default(0),
+  precioVenta: decimal('precio_venta', { precision: 10, scale: 2 }),
+  colorPreventa: varchar('color_preventa', { length: 100 }),
 });
 
 export const orderLocationHistory = mysqlTable('order_location_history', {

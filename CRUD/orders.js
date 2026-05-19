@@ -6,7 +6,14 @@ const pool = require('../database/dbConfig');
 /*-----------------CREACION DE ORDENES DE TRABAJO--------------- */
 // create
 router.post("/", (req, res) => {
-  const { accesorios, branches_id, client_id, device_id, device_color, password, problem, serial, state_id, users_id } = req.body;
+  const {
+    accesorios, branches_id, client_id, device_id, device_color, password,
+    problem, serial, state_id, users_id,
+    // Campos opcionales del flujo Pre-Venta (mayo 2026). Para órdenes
+    // normales vienen undefined → defaults (0/NULL). Para pre-ventas vienen
+    // del form de /preventa.
+    es_preventa, precio_venta, color_preventa,
+  } = req.body;
   // created_at lo genera el server en AR-local wall-clock (CONVERT_TZ). El
   // body podría traer created_at del cliente legacy, pero lo ignoramos — la
   // fecha autoritativa es el momento del insert en DB.
@@ -23,12 +30,15 @@ router.post("/", (req, res) => {
     serial,
     users_id,
     device_color,
+    es_preventa ? 1 : 0,
+    precio_venta ?? null,
+    color_preventa ?? null,
   ]
-  const qCreateOrder = "INSERT INTO orders (client_id, device_id, branches_id, current_branch_id, created_at, state_id, problem, password, accesorios, serial, users_id, device_color) VALUES (?, ?, ?, ?, CONVERT_TZ(NOW(), '+00:00', '-03:00'), ?, ?, ?, ?, ?, ?, ?)";
-  
+  const qCreateOrder = "INSERT INTO orders (client_id, device_id, branches_id, current_branch_id, created_at, state_id, problem, password, accesorios, serial, users_id, device_color, es_preventa, precio_venta, color_preventa) VALUES (?, ?, ?, ?, CONVERT_TZ(NOW(), '+00:00', '-03:00'), ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
+
   pool.getConnection((err, db) => {
     if (err) return res.status(500).send(err);
-    
+
     db.query(qCreateOrder, values, (err, data) => {
       db.release()
       if (err) return res.status(500).send(err);
@@ -134,6 +144,30 @@ router.get("/incucai", (req, res) => {
 // Incluye también el admin group (mismo lookup que la regla INCUCAI
 // override de PUT /:id) para que la UI pueda forzar visualmente la
 // asignación a Admin cuando se elige INCUCAI.
+// Pre-Venta (mayo 2026): suma de señas pagadas por orden. Se calcula desde
+// movements.unidades para la categoría 'Seña' linkeada por movname.order_id.
+// Los unidades del lado seña vienen con signo negativo en el INSERT (es la
+// "deuda" hacia el cliente); devolvemos el ABS para que el frontend pueda
+// renderear "$ X señado" / "saldo = precio - señado" sin manejar signo.
+router.get("/preventa-info/:id", (req, res) => {
+  const orderId = req.params.id;
+  const q = `
+    SELECT COALESCE(SUM(ABS(mv.unidades)), 0) AS total_senado
+    FROM movname mn
+    JOIN movements mv ON mv.movname_id = mn.idmovname
+    JOIN movcategories mc ON mc.idmovcategories = mv.movcategories_id
+    WHERE mn.order_id = ? AND mc.categories = 'Seña' AND mv.unidades < 0
+  `;
+  pool.getConnection((err, db) => {
+    if (err) return res.status(500).send(err);
+    db.query(q, [orderId], (err2, rows) => {
+      db.release();
+      if (err2) return res.status(500).send(err2);
+      return res.status(200).json({ totalSenado: Number(rows[0]?.total_senado ?? 0) });
+    });
+  });
+});
+
 router.get("/special-states", (req, res) => {
   const qMain = `
     SELECT

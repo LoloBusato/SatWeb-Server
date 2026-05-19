@@ -189,6 +189,140 @@ router.post('/movesRepairs', async (req, res) => {
     }
     executeTransaction()
   });
+
+  // ===== Pre-Venta flow (mayo 2026) =====
+  // Tres endpoints atómicos. Categoría 'Seña' (tipo='Señas') queda con saldo
+  // pendiente entre depósito y retiro; se libera al cobro o se reclasifica
+  // a Venta cuando el cliente se arrepiente y nos quedamos con el dinero.
+
+  // 1. Depósito inicial: movname + movements. Sin cobros (la orden todavía
+  //    no se entregó). El frontend de /preventa crea la orden con
+  //    POST /orders (es_preventa=1) primero y después llama acá con el
+  //    order_id resultante.
+  router.post('/movesPreVentaSenya', async (req, res) => {
+    const { valuesCreateMovname, arrayMovements, branch_id } = req.body;
+    const qCreateMoveName = "INSERT INTO movname (ingreso, egreso, operacion, monto, fecha, userId, branch_id, order_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?)";
+    const qCreateMovement = "INSERT INTO movements (movcategories_id, unidades, movname_id, branch_id) VALUES (?, ?, ?, ?)";
+
+    const db = await pool.promise().getConnection();
+    try {
+      await db.beginTransaction();
+      const [r] = await db.execute(qCreateMoveName, valuesCreateMovname);
+      const moveName_id = r.insertId;
+      await Promise.all(arrayMovements.map(el =>
+        db.execute(qCreateMovement, [...el, moveName_id, branch_id])
+      ));
+      await db.commit();
+      return res.status(200).json({ moveName_id });
+    } catch (err) {
+      await db.rollback();
+      console.error(err);
+      return res.status(500).send(err);
+    } finally {
+      db.release();
+    }
+  });
+
+  // 2. Cobro al retiro. Mismo shape que /movesSells pero la orden ya
+  //    existe — UPDATE en vez de INSERT. Repuestos opcionales (el equipo
+  //    principal viene desde el stock o no, depende del workflow).
+  router.post('/movesPreVentaCobro', async (req, res) => {
+    const {
+      valuesCreateMovname,
+      arrayMovements,
+      updateStockArr = [],
+      insertReduceArr = [],
+      branch_id,
+      fecha,
+      order_id,
+    } = req.body;
+
+    const qCreateMoveName = "INSERT INTO movname (ingreso, egreso, operacion, monto, fecha, userId, branch_id, order_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?)";
+    const qCreateMovement = "INSERT INTO movements (movcategories_id, unidades, branch_id, movname_id) VALUES (?, ?, ?, ?)";
+    const qupdateStock = "UPDATE stockbranch SET `cantidad_restante` = ? WHERE stockbranchid = ?";
+    const qInsertReduceStock = "INSERT INTO reducestock (orderid, userid, stockbranch_id, date) VALUES (?, ?, ?, STR_TO_DATE(?, '%d/%m/%Y %H:%i:%s'))";
+    const qCreateCobros = "INSERT INTO cobros (order_id, movname_id, fecha) VALUES (?, ?, ?)";
+    // Al retiro la orden pasa a ENTREGADO (state_id desde branch_settings,
+    // users_id NULL — los entregadas no tienen dueño, ver migration 0024).
+    const qFinalizeOrder = `
+      UPDATE orders
+      SET returned_at = CONVERT_TZ(NOW(), '+00:00', '-03:00'),
+          state_changed_at = CONVERT_TZ(NOW(), '+00:00', '-03:00'),
+          state_id = (SELECT delivered_state_id FROM branch_settings LIMIT 1),
+          users_id = NULL
+      WHERE order_id = ?
+    `;
+
+    const db = await pool.promise().getConnection();
+    try {
+      await db.beginTransaction();
+
+      for (const [cantidad, stockbranchid] of updateStockArr) {
+        await db.execute(qupdateStock, [cantidad, stockbranchid]);
+      }
+      await Promise.all(insertReduceArr.map(el =>
+        db.execute(qInsertReduceStock, [order_id, ...el])
+      ));
+
+      const [r] = await db.execute(qCreateMoveName, valuesCreateMovname);
+      const moveName_id = r.insertId;
+      await Promise.all(arrayMovements.map(el =>
+        db.execute(qCreateMovement, [...el, branch_id, moveName_id])
+      ));
+      await db.execute(qCreateCobros, [order_id, moveName_id, fecha]);
+      await db.execute(qFinalizeOrder, [order_id]);
+
+      await db.commit();
+      return res.status(200).json({ moveName_id });
+    } catch (err) {
+      await db.rollback();
+      console.error(err);
+      return res.status(500).send(err);
+    } finally {
+      db.release();
+    }
+  });
+
+  // 3. "Se arrepintió": cancela la pre-venta. Dos sub-acciones manejadas
+  //    por el frontend con el mismo endpoint — el caller arma los movements
+  //    correctos:
+  //      - devolver: caja_id -seña, seña_id +seña
+  //      - ganancia: venta_id -seña, seña_id +seña
+  //    Ambas terminan la orden con state=ENTREGADO + returned_at + sin user.
+  router.post('/movesPreVentaArrepentido', async (req, res) => {
+    const { valuesCreateMovname, arrayMovements, branch_id, order_id } = req.body;
+
+    const qCreateMoveName = "INSERT INTO movname (ingreso, egreso, operacion, monto, fecha, userId, branch_id, order_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?)";
+    const qCreateMovement = "INSERT INTO movements (movcategories_id, unidades, branch_id, movname_id) VALUES (?, ?, ?, ?)";
+    const qFinalizeOrder = `
+      UPDATE orders
+      SET returned_at = CONVERT_TZ(NOW(), '+00:00', '-03:00'),
+          state_changed_at = CONVERT_TZ(NOW(), '+00:00', '-03:00'),
+          state_id = (SELECT delivered_state_id FROM branch_settings LIMIT 1),
+          users_id = NULL
+      WHERE order_id = ?
+    `;
+
+    const db = await pool.promise().getConnection();
+    try {
+      await db.beginTransaction();
+      const [r] = await db.execute(qCreateMoveName, valuesCreateMovname);
+      const moveName_id = r.insertId;
+      await Promise.all(arrayMovements.map(el =>
+        db.execute(qCreateMovement, [...el, branch_id, moveName_id])
+      ));
+      await db.execute(qFinalizeOrder, [order_id]);
+      await db.commit();
+      return res.status(200).json({ moveName_id });
+    } catch (err) {
+      await db.rollback();
+      console.error(err);
+      return res.status(500).send(err);
+    } finally {
+      db.release();
+    }
+  });
+
   // read
   router.get("/:id", (req, res) => {
     const moveId = req.params.id;
