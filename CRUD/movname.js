@@ -283,6 +283,44 @@ router.post('/movesRepairs', async (req, res) => {
     }
   });
 
+  // 2b. Pago parcial al retiro. El cliente paga menos del saldo y la orden
+  //     queda en DEUDOR (asignada a Atención al Cliente). NO se libera la
+  //     seña, NO se descuenta stock, NO se postea Venta — el pago se
+  //     acumula como una seña más. El último pago (cuando saldo=0) va por
+  //     /movesPreVentaCobro y libera todo.
+  router.post('/movesPreVentaPagoParcial', async (req, res) => {
+    const { valuesCreateMovname, arrayMovements, branch_id, order_id } = req.body;
+    const qCreateMoveName = "INSERT INTO movname (ingreso, egreso, operacion, monto, fecha, userId, branch_id, order_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?)";
+    const qCreateMovement = "INSERT INTO movements (movcategories_id, unidades, movname_id, branch_id) VALUES (?, ?, ?, ?)";
+    // Estado DEUDOR resuelto por nombre — el frontend no hardcodea ids.
+    const qUpdateOrder = `
+      UPDATE orders
+      SET state_id = (SELECT idstates FROM states WHERE state = 'DEUDOR' LIMIT 1),
+          state_changed_at = CONVERT_TZ(NOW(), '+00:00', '-03:00'),
+          users_id = (SELECT idgrupousuarios FROM grupousuarios WHERE LOWER(grupo) = 'atencion al cliente belgrano' LIMIT 1)
+      WHERE order_id = ?
+    `;
+
+    const db = await pool.promise().getConnection();
+    try {
+      await db.beginTransaction();
+      const [r] = await db.execute(qCreateMoveName, valuesCreateMovname);
+      const moveName_id = r.insertId;
+      await Promise.all(arrayMovements.map(el =>
+        db.execute(qCreateMovement, [...el, moveName_id, branch_id])
+      ));
+      await db.execute(qUpdateOrder, [order_id]);
+      await db.commit();
+      return res.status(200).json({ moveName_id });
+    } catch (err) {
+      await db.rollback();
+      console.error(err);
+      return res.status(500).send(err);
+    } finally {
+      db.release();
+    }
+  });
+
   // 3. "Se arrepintió": cancela la pre-venta. Dos sub-acciones manejadas
   //    por el frontend con el mismo endpoint — el caller arma los movements
   //    correctos:

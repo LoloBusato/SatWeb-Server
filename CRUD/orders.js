@@ -146,18 +146,16 @@ router.get("/incucai", (req, res) => {
 // Incluye también el admin group (mismo lookup que la regla INCUCAI
 // override de PUT /:id) para que la UI pueda forzar visualmente la
 // asignación a Admin cuando se elige INCUCAI.
-// Pre-Venta (mayo 2026): suma de señas pagadas por orden, separadas por
-// moneda. Después del split (mayo 2026 también) hay 2 categorías:
-// 'Seña USD' y 'Seña ARS' — cada movement guarda su unidad en la moneda
-// nativa, sin conversión via dolar blue. Devolvemos ambos totales para
-// que el frontend muestre saldo con precisión sin importar la moneda de
-// la orden.
+// Pre-Venta (mayo 2026): info financiera por orden — totales señados por
+// moneda + historial de cada pago (seña inicial + pagos parciales). Las
+// 2 categorías 'Seña USD' / 'Seña ARS' guardan unidades en moneda nativa
+// sin conversión via dolar blue, así el frontend computa saldo exacto.
 router.get("/preventa-info/:id", (req, res) => {
   const orderId = req.params.id;
-  const q = `
-    SELECT
-      mc.categories AS cat,
-      COALESCE(SUM(ABS(mv.unidades)), 0) AS total
+  // Query 1: totales agrupados.
+  const qTotals = `
+    SELECT mc.categories AS cat,
+           COALESCE(SUM(ABS(mv.unidades)), 0) AS total
     FROM movname mn
     JOIN movements mv ON mv.movname_id = mn.idmovname
     JOIN movcategories mc ON mc.idmovcategories = mv.movcategories_id
@@ -166,18 +164,44 @@ router.get("/preventa-info/:id", (req, res) => {
       AND mv.unidades < 0
     GROUP BY mc.categories
   `;
+  // Query 2: lista de pagos (1 fila por movement de seña), con fecha del
+  // movname padre. Se renderea en Messages.js como historial.
+  const qPagos = `
+    SELECT mn.idmovname AS id,
+           mn.fecha,
+           mn.operacion,
+           mn.ingreso AS caja_label,
+           mc.categories AS sena_cat,
+           ABS(mv.unidades) AS monto
+    FROM movname mn
+    JOIN movements mv ON mv.movname_id = mn.idmovname
+    JOIN movcategories mc ON mc.idmovcategories = mv.movcategories_id
+    WHERE mn.order_id = ?
+      AND mc.tipo = 'Señas'
+      AND mv.unidades < 0
+    ORDER BY STR_TO_DATE(mn.fecha, '%d/%m/%Y %H:%i:%s') ASC
+  `;
   pool.getConnection((err, db) => {
     if (err) return res.status(500).send(err);
-    db.query(q, [orderId], (err2, rows) => {
-      db.release();
-      if (err2) return res.status(500).send(err2);
-      const byCat = Object.fromEntries(rows.map(r => [r.cat, Number(r.total)]));
-      return res.status(200).json({
-        senaUSD: byCat['Seña USD'] ?? 0,
-        senaARS: byCat['Seña ARS'] ?? 0,
-        // Compat con clientes que aún piden el total agregado (sin moneda).
-        // Se ignorará en breve — preferí senaUSD/senaARS por separado.
-        totalSenado: (byCat['Seña ARS'] ?? 0),
+    db.query(qTotals, [orderId], (err2, totalRows) => {
+      if (err2) { db.release(); return res.status(500).send(err2); }
+      db.query(qPagos, [orderId], (err3, pagoRows) => {
+        db.release();
+        if (err3) return res.status(500).send(err3);
+        const byCat = Object.fromEntries(totalRows.map(r => [r.cat, Number(r.total)]));
+        return res.status(200).json({
+          senaUSD: byCat['Seña USD'] ?? 0,
+          senaARS: byCat['Seña ARS'] ?? 0,
+          totalSenado: byCat['Seña ARS'] ?? 0,    // compat legacy
+          pagos: pagoRows.map(p => ({
+            id: p.id,
+            fecha: p.fecha,
+            operacion: p.operacion,
+            caja: p.caja_label,
+            moneda: p.sena_cat === 'Seña USD' ? 'USD' : 'ARS',
+            monto: Number(p.monto),
+          })),
+        });
       });
     });
   });
