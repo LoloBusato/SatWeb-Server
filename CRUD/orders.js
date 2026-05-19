@@ -10,9 +10,10 @@ router.post("/", (req, res) => {
     accesorios, branches_id, client_id, device_id, device_color, password,
     problem, serial, state_id, users_id,
     // Campos opcionales del flujo Pre-Venta (mayo 2026). Para órdenes
-    // normales vienen undefined → defaults (0/NULL). Para pre-ventas vienen
-    // del form de /preventa.
-    es_preventa, precio_venta, color_preventa,
+    // normales vienen undefined → defaults (0/NULL/'USD'). Para pre-ventas
+    // vienen del form de /preventa. moneda_preventa default 'USD' (el
+    // precio default de pre-ventas es USD).
+    es_preventa, precio_venta, color_preventa, moneda_preventa,
   } = req.body;
   // created_at lo genera el server en AR-local wall-clock (CONVERT_TZ). El
   // body podría traer created_at del cliente legacy, pero lo ignoramos — la
@@ -33,8 +34,9 @@ router.post("/", (req, res) => {
     es_preventa ? 1 : 0,
     precio_venta ?? null,
     color_preventa ?? null,
+    moneda_preventa ?? 'USD',
   ]
-  const qCreateOrder = "INSERT INTO orders (client_id, device_id, branches_id, current_branch_id, created_at, state_id, problem, password, accesorios, serial, users_id, device_color, es_preventa, precio_venta, color_preventa) VALUES (?, ?, ?, ?, CONVERT_TZ(NOW(), '+00:00', '-03:00'), ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
+  const qCreateOrder = "INSERT INTO orders (client_id, device_id, branches_id, current_branch_id, created_at, state_id, problem, password, accesorios, serial, users_id, device_color, es_preventa, precio_venta, color_preventa, moneda_preventa) VALUES (?, ?, ?, ?, CONVERT_TZ(NOW(), '+00:00', '-03:00'), ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
 
   pool.getConnection((err, db) => {
     if (err) return res.status(500).send(err);
