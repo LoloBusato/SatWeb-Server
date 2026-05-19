@@ -58,7 +58,12 @@ router.post("/", (req, res) => {
 // sucursales activas, así que LIMIT 1 alcanza para la lógica global del
 // listado. Si en el futuro hace falta scope per-branch, la query se
 // parametriza con branchId.
-const BASE_ORDERS_SELECT = "SELECT * FROM orders JOIN clients ON orders.client_id = clients.idclients JOIN devices ON orders.device_id = devices.iddevices JOIN brands ON devices.brand_id = brands.brandid JOIN types ON devices.type_id = types.typeid JOIN branches ON orders.branches_id = branches.idbranches JOIN states ON orders.state_id = states.idstates JOIN grupousuarios ON orders.users_id = grupousuarios.idgrupousuarios";
+// LEFT JOIN sobre grupousuarios — desde migration 0024 una orden puede
+// tener users_id = NULL (entregadas + INCUCAI orfanadas por cron). El
+// INNER JOIN original las excluía de TODOS los listados (Reparaciones,
+// /entregados, /para-retirar, /incucai, Home admin). Frontend muestra
+// "Propiedad de TheDoniPhone" cuando order.grupo viene NULL.
+const BASE_ORDERS_SELECT = "SELECT * FROM orders JOIN clients ON orders.client_id = clients.idclients JOIN devices ON orders.device_id = devices.iddevices JOIN brands ON devices.brand_id = brands.brandid JOIN types ON devices.type_id = types.typeid JOIN branches ON orders.branches_id = branches.idbranches JOIN states ON orders.state_id = states.idstates LEFT JOIN grupousuarios ON orders.users_id = grupousuarios.idgrupousuarios";
 
 const Q_RESOLVE_SPECIAL_STATE_IDS = `
   SELECT delivered_state_id, ready_state_id, incucai_state_id
@@ -255,7 +260,8 @@ router.get("/special-states", (req, res) => {
 
 router.get("/:id", (req, res) => {
   const orderId = req.params.id;
-  const qgetOrders = "SELECT * FROM orders JOIN clients ON orders.client_id = clients.idclients JOIN devices ON orders.device_id = devices.iddevices JOIN brands ON devices.brand_id = brands.brandid JOIN types ON devices.type_id = types.typeid JOIN branches ON orders.branches_id = branches.idbranches JOIN states ON orders.state_id = states.idstates JOIN grupousuarios ON orders.users_id = grupousuarios.idgrupousuarios WHERE order_id = ?";
+  // LEFT JOIN sobre grupousuarios — ver comentario en BASE_ORDERS_SELECT.
+  const qgetOrders = "SELECT * FROM orders JOIN clients ON orders.client_id = clients.idclients JOIN devices ON orders.device_id = devices.iddevices JOIN brands ON devices.brand_id = brands.brandid JOIN types ON devices.type_id = types.typeid JOIN branches ON orders.branches_id = branches.idbranches JOIN states ON orders.state_id = states.idstates LEFT JOIN grupousuarios ON orders.users_id = grupousuarios.idgrupousuarios WHERE order_id = ?";
   
   pool.getConnection((err, db) => {
     if (err) return res.status(500).send(err);
