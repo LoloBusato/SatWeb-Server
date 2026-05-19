@@ -146,26 +146,39 @@ router.get("/incucai", (req, res) => {
 // Incluye también el admin group (mismo lookup que la regla INCUCAI
 // override de PUT /:id) para que la UI pueda forzar visualmente la
 // asignación a Admin cuando se elige INCUCAI.
-// Pre-Venta (mayo 2026): suma de señas pagadas por orden. Se calcula desde
-// movements.unidades para la categoría 'Seña' linkeada por movname.order_id.
-// Los unidades del lado seña vienen con signo negativo en el INSERT (es la
-// "deuda" hacia el cliente); devolvemos el ABS para que el frontend pueda
-// renderear "$ X señado" / "saldo = precio - señado" sin manejar signo.
+// Pre-Venta (mayo 2026): suma de señas pagadas por orden, separadas por
+// moneda. Después del split (mayo 2026 también) hay 2 categorías:
+// 'Seña USD' y 'Seña ARS' — cada movement guarda su unidad en la moneda
+// nativa, sin conversión via dolar blue. Devolvemos ambos totales para
+// que el frontend muestre saldo con precisión sin importar la moneda de
+// la orden.
 router.get("/preventa-info/:id", (req, res) => {
   const orderId = req.params.id;
   const q = `
-    SELECT COALESCE(SUM(ABS(mv.unidades)), 0) AS total_senado
+    SELECT
+      mc.categories AS cat,
+      COALESCE(SUM(ABS(mv.unidades)), 0) AS total
     FROM movname mn
     JOIN movements mv ON mv.movname_id = mn.idmovname
     JOIN movcategories mc ON mc.idmovcategories = mv.movcategories_id
-    WHERE mn.order_id = ? AND mc.categories = 'Seña' AND mv.unidades < 0
+    WHERE mn.order_id = ?
+      AND mc.tipo = 'Señas'
+      AND mv.unidades < 0
+    GROUP BY mc.categories
   `;
   pool.getConnection((err, db) => {
     if (err) return res.status(500).send(err);
     db.query(q, [orderId], (err2, rows) => {
       db.release();
       if (err2) return res.status(500).send(err2);
-      return res.status(200).json({ totalSenado: Number(rows[0]?.total_senado ?? 0) });
+      const byCat = Object.fromEntries(rows.map(r => [r.cat, Number(r.total)]));
+      return res.status(200).json({
+        senaUSD: byCat['Seña USD'] ?? 0,
+        senaARS: byCat['Seña ARS'] ?? 0,
+        // Compat con clientes que aún piden el total agregado (sin moneda).
+        // Se ignorará en breve — preferí senaUSD/senaARS por separado.
+        totalSenado: (byCat['Seña ARS'] ?? 0),
+      });
     });
   });
 });
