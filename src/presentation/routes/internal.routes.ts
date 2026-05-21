@@ -49,6 +49,11 @@ export function internalRouter(
       // representar "Propiedad de TheDoniPhone" en el tab INCUCAI del
       // home admin. Idempotente (filtra por users_id IS NOT NULL).
       const orphaned = await orderRepo.orphanIncucaiOverdue();
+      // Paso 3: archivar repuestos de órdenes entregadas hace > 6 meses
+      // (mayo 2026). Convierte cada conjunto de filas reducestock en un
+      // mensaje "[Archivo] Repuestos usados: ..." y borra las filas.
+      // Idempotente (filtra por EXISTS reducestock).
+      const archivedRepuestos = await orderRepo.archiveOldRepuestos();
 
       req.log?.info(
         {
@@ -56,10 +61,13 @@ export function internalRouter(
           archivedIds: archived.orderIds,
           orphaned: orphaned.orphaned,
           orphanedIds: orphaned.orderIds,
+          archivedRepuestos: archivedRepuestos.archived,
+          messagesInserted: archivedRepuestos.messagesInserted,
+          reducestockDeleted: archivedRepuestos.reducestockDeleted,
         },
         'cron: archive-overdue-tick executed',
       );
-      res.json({ archived, orphaned });
+      res.json({ archived, orphaned, archivedRepuestos });
     } catch (err) {
       next(err);
     }

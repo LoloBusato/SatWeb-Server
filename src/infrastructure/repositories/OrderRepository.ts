@@ -375,6 +375,117 @@ export class OrderRepository {
     return { orphaned: ids.length, orderIds: ids };
   }
 
+  /**
+   * Archiva los repuestos usados en órdenes entregadas hace > 6 meses.
+   * Por cada orden elegible: INSERT una fila en `messages` con un texto
+   * que describe los repuestos consumidos, y DELETE las filas de
+   * `reducestock` de esa orden. Cada orden en su propia transacción —
+   * si una falla por datos inconsistentes (lote borrado en cleanup
+   * previo, etc.) no aborta el lote.
+   *
+   * Importante: `reducestock` referencia el lote por dos caminos
+   * (legacy `stockid` y actual `stockbranch_id`); COALESCE elige el
+   * que resuelva primero. Si ninguno resuelve a un lote válido, la
+   * fila se omite del mensaje pero igual se borra (dato basura).
+   */
+  async archiveOldRepuestos(
+    olderThanMonths = 6,
+  ): Promise<{ archived: number; orderIds: number[]; messagesInserted: number; reducestockDeleted: number }> {
+    // Elegibles: ENTREGADO con returned_at viejo y con ≥1 fila en reducestock.
+    const [eligible] = (await this.db.execute(sql`
+      SELECT o.order_id AS id
+      FROM orders o
+      JOIN states s ON s.idstates = o.state_id
+      WHERE s.state = 'ENTREGADO'
+        AND o.returned_at IS NOT NULL
+        AND o.returned_at < DATE_SUB(NOW(), INTERVAL ${olderThanMonths} MONTH)
+        AND EXISTS (SELECT 1 FROM reducestock rs WHERE rs.orderid = o.order_id)
+    `)) as unknown as [Array<{ id: number }>];
+
+    if (eligible.length === 0) {
+      return { archived: 0, orderIds: [], messagesInserted: 0, reducestockDeleted: 0 };
+    }
+
+    let messagesInserted = 0;
+    let reducestockDeleted = 0;
+    const orderIds: number[] = [];
+
+    for (const row of eligible) {
+      const orderId = row.id;
+      try {
+        // Resolvemos cada fila de reducestock a su lote, agrupado por
+        // tipo de repuesto (idstock = lote). Si ambos paths fallan, el
+        // row queda sin lote — se incluye igual en el DELETE pero no
+        // suma al texto.
+        const [items] = (await this.db.execute(sql`
+          SELECT
+            r.repuesto                              AS repuesto,
+            s.idstock                               AS idstock,
+            CAST(s.precio_compra AS DECIMAL(10,2))  AS precio_compra,
+            p.nombre                                AS proveedor,
+            COUNT(*)                                AS cantidad
+          FROM reducestock rs
+          LEFT JOIN stockbranch sb ON sb.stockbranchid = rs.stockbranch_id
+          JOIN stock s             ON s.idstock = COALESCE(rs.stockid, sb.stock_id)
+          JOIN repuestos r         ON r.idrepuestos = s.repuesto_id
+          LEFT JOIN proveedores p  ON p.idproveedores = s.proveedor_id
+          WHERE rs.orderid = ${orderId}
+          GROUP BY s.idstock, r.repuesto, s.precio_compra, p.nombre
+          ORDER BY r.repuesto
+        `)) as unknown as [Array<{
+          repuesto: string;
+          idstock: number;
+          precio_compra: string | number;
+          proveedor: string | null;
+          cantidad: number;
+        }>];
+
+        const partes = items.map((it) => {
+          const precio = Number(it.precio_compra ?? 0).toFixed(0);
+          const prov = it.proveedor ?? 'sin proveedor';
+          return `${it.repuesto.trim()} x${it.cantidad} ($${precio} - ${prov})`;
+        });
+        const mensaje = partes.length > 0
+          ? `[Archivo] Repuestos usados: ${partes.join(', ')}`
+          : `[Archivo] Repuestos usados: (no se pudo resolver el detalle — reducestock huérfano)`;
+
+        // Insertamos message + borramos reducestock en una transacción
+        // por orden. Si algo falla, la orden queda intacta y el lote
+        // sigue al siguiente sin abortar.
+        await this.db.transaction(async (tx) => {
+          await tx.execute(sql`
+            INSERT INTO messages (message, username, created_at, orderId)
+            VALUES (
+              ${mensaje},
+              'Sistema',
+              CONVERT_TZ(NOW(), '+00:00', '-03:00'),
+              ${orderId}
+            )
+          `);
+          const [delResult] = (await tx.execute(sql`
+            DELETE FROM reducestock WHERE orderid = ${orderId}
+          `)) as unknown as [{ affectedRows: number }];
+          reducestockDeleted += delResult.affectedRows ?? 0;
+          messagesInserted += 1;
+        });
+        orderIds.push(orderId);
+      } catch (err) {
+        // Saltamos la orden — el lote sigue, no abortamos todo.
+        // El cron Vercel verá esto en req.log si está conectado.
+        // eslint-disable-next-line no-console
+        console.error(`archiveOldRepuestos: error en orden ${orderId}`, (err as Error).message);
+        continue;
+      }
+    }
+
+    return {
+      archived: orderIds.length,
+      orderIds,
+      messagesInserted,
+      reducestockDeleted,
+    };
+  }
+
   async updateState(
     orderId: number,
     newStateId: number,
