@@ -55,13 +55,30 @@ router.post('/', async (req, res) => {
 
     pool.getConnection((err, db) => {
       if (err) return res.status(500).send(err);
-      
+
       db.query(qgetClients, (err, data) => {
         db.release()
         if (err) return res.status(500).send(err);
         return res.status(200).json(data)
       });
     })
+  })
+  // search por coincidencia parcial de teléfono. Usado por el form de
+  // creación de orden (orders.jsx) para autocompletar cliente cuando se
+  // tipea el número. Limitado a 10 resultados para latencia y UX — el
+  // frontend dispara con ≥ 4 dígitos para evitar matches masivos.
+  router.get("/search", (req, res) => {
+    const phone = (req.query.phone ?? '').trim();
+    if (phone.length < 3) return res.status(200).json([]);
+    const qSearch = "SELECT * FROM clients WHERE phone LIKE ? ORDER BY idclients DESC LIMIT 10";
+    pool.getConnection((err, db) => {
+      if (err) return res.status(500).send(err);
+      db.query(qSearch, [`%${phone}%`], (err, data) => {
+        db.release();
+        if (err) return res.status(500).send(err);
+        return res.status(200).json(data);
+      });
+    });
   })
   // update
   router.put("/:id", (req, res) => {
