@@ -63,17 +63,27 @@ router.post('/', async (req, res) => {
       });
     })
   })
-  // search por coincidencia parcial de teléfono. Usado por el form de
-  // creación de orden (orders.jsx) para autocompletar cliente cuando se
-  // tipea el número. Limitado a 10 resultados para latencia y UX — el
-  // frontend dispara con ≥ 4 dígitos para evitar matches masivos.
+  // search unificado: coincidencia parcial en name, surname o phone.
+  // Acepta ?q=X (preferido, busca en los 3 campos) o ?phone=X (legacy,
+  // sólo phone — mantenido para compat retro de callers viejos).
+  // Limitado a 10 resultados; el frontend dispara con ≥ 3 caracteres
+  // para evitar matches masivos.
   router.get("/search", (req, res) => {
+    const q = (req.query.q ?? '').trim();
     const phone = (req.query.phone ?? '').trim();
-    if (phone.length < 3) return res.status(200).json([]);
-    const qSearch = "SELECT * FROM clients WHERE phone LIKE ? ORDER BY idclients DESC LIMIT 10";
+    const term = q || phone;
+    if (term.length < 3) return res.status(200).json([]);
+
+    const qSearch = q
+      ? "SELECT * FROM clients WHERE name LIKE ? OR surname LIKE ? OR phone LIKE ? ORDER BY idclients DESC LIMIT 10"
+      : "SELECT * FROM clients WHERE phone LIKE ? ORDER BY idclients DESC LIMIT 10";
+    const args = q
+      ? [`%${term}%`, `%${term}%`, `%${term}%`]
+      : [`%${term}%`];
+
     pool.getConnection((err, db) => {
       if (err) return res.status(500).send(err);
-      db.query(qSearch, [`%${phone}%`], (err, data) => {
+      db.query(qSearch, args, (err, data) => {
         db.release();
         if (err) return res.status(500).send(err);
         return res.status(200).json(data);
