@@ -400,19 +400,105 @@ router.post('/movesRepairs', async (req, res) => {
     })
   })
   // delete
-  router.delete("/:id", (req, res) => {
+  // Caso especial: si el movname es un "Retiro pre-venta", el cobro se
+  // tiene que poder deshacer entero — la orden vuelve a COMPRAR REPUESTO,
+  // se restaura el stock de los items que fueron descontados, y se borra
+  // movname (CASCADE → movements + cobros). Las señas previas viven en
+  // otros movname y no se tocan.
+  //
+  // Para cualquier otro tipo de movname, comportamiento legacy: DELETE
+  // directo + CASCADE.
+  router.delete("/:id", async (req, res) => {
     const moveId = req.params.id;
-    const qdeleteMovement = " DELETE FROM movname WHERE idmovname = ? ";
-  
-    pool.getConnection((err, db) => {
-      if (err) return res.status(500).send(err);
-      
-      db.query(qdeleteMovement, [moveId], (err, data) => {
-        db.release()
-        if (err) return res.status(500).send(err);
-        return res.status(200).json(data)
-      });
-    })
+    const db = await pool.promise().getConnection();
+    try {
+      const [meta] = await db.execute(
+        'SELECT idmovname, operacion, order_id FROM movname WHERE idmovname = ?',
+        [moveId]
+      );
+      if (meta.length === 0) {
+        db.release();
+        return res.status(404).json({ error: 'movname no encontrado' });
+      }
+      const { operacion, order_id } = meta[0];
+      const esRetiroPreventa =
+        order_id !== null &&
+        typeof operacion === 'string' &&
+        operacion.startsWith('Retiro pre-venta');
+
+      if (!esRetiroPreventa) {
+        // Path legacy: borrado directo, CASCADE limpia movements/cobros.
+        await db.execute('DELETE FROM movname WHERE idmovname = ?', [moveId]);
+        db.release();
+        return res.status(200).json({ reverted: false });
+      }
+
+      // Path nuevo: revertir cobro completo en transacción.
+      await db.beginTransaction();
+      try {
+        // 1) Resolver estado destino + grupo. Si no existen, abortamos
+        //    sin tocar nada — la orden no debe quedar en estado roto.
+        const [[stateRow]] = await db.execute(
+          "SELECT idstates FROM states WHERE state = 'COMPRAR REPUESTO' LIMIT 1"
+        );
+        const [[grupoRow]] = await db.execute(
+          "SELECT idgrupousuarios FROM grupousuarios WHERE LOWER(grupo) = 'atencion al cliente belgrano' LIMIT 1"
+        );
+        if (!stateRow || !grupoRow) {
+          throw new Error('Faltan COMPRAR REPUESTO / Atencion al cliente Belgrano en el catálogo');
+        }
+
+        // 2) Restaurar stock: 1 fila reducestock = 1 unidad. Agrupamos
+        //    por stockbranch_id y sumamos a cantidad_restante.
+        await db.execute(
+          `UPDATE stockbranch sb
+           JOIN (
+             SELECT stockbranch_id, COUNT(*) AS n
+             FROM reducestock
+             WHERE orderid = ? AND stockbranch_id IS NOT NULL
+             GROUP BY stockbranch_id
+           ) cnt ON cnt.stockbranch_id = sb.stockbranchid
+           SET sb.cantidad_restante = sb.cantidad_restante + cnt.n`,
+          [order_id]
+        );
+
+        // 3) Borrar reducestock de la orden — incluye preexistentes
+        //    agregados desde Mensajes; si la orden se re-cobra, el
+        //    operador los re-agrega.
+        await db.execute('DELETE FROM reducestock WHERE orderid = ?', [order_id]);
+
+        // 4) Revertir la orden al estado pre-cobro.
+        await db.execute(
+          `UPDATE orders
+           SET state_id         = ?,
+               users_id         = ?,
+               returned_at      = NULL,
+               state_changed_at = CONVERT_TZ(NOW(), '+00:00', '-03:00')
+           WHERE order_id = ?`,
+          [stateRow.idstates, grupoRow.idgrupousuarios, order_id]
+        );
+
+        // 5) Borrar movname — CASCADE limpia movements + cobros.
+        await db.execute('DELETE FROM movname WHERE idmovname = ?', [moveId]);
+
+        await db.commit();
+        return res.status(200).json({
+          reverted: true,
+          order_id,
+          new_state_id: stateRow.idstates,
+          new_users_id: grupoRow.idgrupousuarios,
+        });
+      } catch (err) {
+        await db.rollback();
+        console.error('movname DELETE revert:', err.message);
+        return res.status(500).json({ error: err.message });
+      }
+    } catch (err) {
+      console.error(err);
+      return res.status(500).send(err.message);
+    } finally {
+      try { db.release(); } catch (_) {}
+    }
   })
 
   module.exports = router
