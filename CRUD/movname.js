@@ -240,7 +240,11 @@ router.post('/movesRepairs', async (req, res) => {
     const qCreateMoveName = "INSERT INTO movname (ingreso, egreso, operacion, monto, fecha, userId, branch_id, order_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?)";
     const qCreateMovement = "INSERT INTO movements (movcategories_id, unidades, branch_id, movname_id) VALUES (?, ?, ?, ?)";
     const qupdateStock = "UPDATE stockbranch SET `cantidad_restante` = ? WHERE stockbranchid = ?";
-    const qInsertReduceStock = "INSERT INTO reducestock (orderid, userid, stockbranch_id, date) VALUES (?, ?, ?, STR_TO_DATE(?, '%d/%m/%Y %H:%i:%s'))";
+    // reducestock.movname_id (migration 0025) — etiquetamos cada fila
+    // creada acá con el movname del cobro, así el revert puede borrar
+    // sólo las filas del cobro y conservar las pre-existentes (creadas
+    // desde Mensajes con movname_id = NULL).
+    const qInsertReduceStock = "INSERT INTO reducestock (orderid, userid, stockbranch_id, date, movname_id) VALUES (?, ?, ?, STR_TO_DATE(?, '%d/%m/%Y %H:%i:%s'), ?)";
     const qCreateCobros = "INSERT INTO cobros (order_id, movname_id, fecha) VALUES (?, ?, ?)";
     // Al retiro la orden pasa a ENTREGADO (state_id desde branch_settings,
     // users_id NULL — los entregadas no tienen dueño, ver migration 0024).
@@ -257,15 +261,18 @@ router.post('/movesRepairs', async (req, res) => {
     try {
       await db.beginTransaction();
 
+      // Movname primero — necesitamos moveName_id para etiquetar
+      // reducestock antes de los demás inserts.
+      const [r] = await db.execute(qCreateMoveName, valuesCreateMovname);
+      const moveName_id = r.insertId;
+
       for (const [cantidad, stockbranchid] of updateStockArr) {
         await db.execute(qupdateStock, [cantidad, stockbranchid]);
       }
       await Promise.all(insertReduceArr.map(el =>
-        db.execute(qInsertReduceStock, [order_id, ...el])
+        db.execute(qInsertReduceStock, [order_id, ...el, moveName_id])
       ));
 
-      const [r] = await db.execute(qCreateMoveName, valuesCreateMovname);
-      const moveName_id = r.insertId;
       await Promise.all(arrayMovements.map(el =>
         db.execute(qCreateMovement, [...el, branch_id, moveName_id])
       ));
@@ -448,24 +455,26 @@ router.post('/movesRepairs', async (req, res) => {
           throw new Error('Faltan COMPRAR REPUESTO / Atencion al cliente Belgrano en el catálogo');
         }
 
-        // 2) Restaurar stock: 1 fila reducestock = 1 unidad. Agrupamos
-        //    por stockbranch_id y sumamos a cantidad_restante.
+        // 2) Restaurar stock SÓLO por las filas de reducestock que se
+        //    crearon DURANTE este cobro (movname_id = moveId). Las filas
+        //    pre-existentes (movname_id NULL — creadas desde Mensajes
+        //    antes del cobro) quedan intactas: al re-cobrar volverán a
+        //    cargarse automáticamente vía existingReducestock.
         await db.execute(
           `UPDATE stockbranch sb
            JOIN (
              SELECT stockbranch_id, COUNT(*) AS n
              FROM reducestock
-             WHERE orderid = ? AND stockbranch_id IS NOT NULL
+             WHERE movname_id = ? AND stockbranch_id IS NOT NULL
              GROUP BY stockbranch_id
            ) cnt ON cnt.stockbranch_id = sb.stockbranchid
            SET sb.cantidad_restante = sb.cantidad_restante + cnt.n`,
-          [order_id]
+          [moveId]
         );
 
-        // 3) Borrar reducestock de la orden — incluye preexistentes
-        //    agregados desde Mensajes; si la orden se re-cobra, el
-        //    operador los re-agrega.
-        await db.execute('DELETE FROM reducestock WHERE orderid = ?', [order_id]);
+        // 3) Borrar SÓLO las filas reducestock del cobro. Las preexistentes
+        //    (movname_id NULL) sobreviven.
+        await db.execute('DELETE FROM reducestock WHERE movname_id = ?', [moveId]);
 
         // 4) Revertir la orden al estado pre-cobro.
         await db.execute(
