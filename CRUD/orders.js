@@ -282,7 +282,15 @@ router.get("/:id", (req, res) => {
 // automático también.
 router.put("/:id", (req, res) => {
   const orderId = req.params.id;
-  const { accesorios, branches_id, device_id, password, problem, serial, state_id, users_id, device_color } = req.body;
+  // realert_count + realert_days (migration 0026). realert_days es el
+  // delta a partir de NOW() AR-local; el SQL lo materializa con
+  // DATE_ADD. Default 0/null para que las transiciones a OTRO estado
+  // limpien el silencio (cuando el estado cambia, empezamos de cero).
+  const {
+    accesorios, branches_id, device_id, password, problem, serial,
+    state_id, users_id, device_color,
+    realert_count = 0, realert_days = null,
+  } = req.body;
 
   pool.getConnection((err, db) => {
     if (err) return res.status(500).send(err);
@@ -335,6 +343,8 @@ router.put("/:id", (req, res) => {
         finalUsersId = admin_group_id;
       }
 
+      const realertCountInt = Number.isFinite(Number(realert_count)) ? Number(realert_count) : 0;
+      const realertDaysOrNull = realert_days === null || realert_days === undefined ? null : Number(realert_days);
       const values = [
         device_id,
         branches_id,
@@ -345,12 +355,18 @@ router.put("/:id", (req, res) => {
         serial,
         finalUsersId,
         device_color,
+        realertCountInt,
+        realertDaysOrNull,  // CASE input
+        realertDaysOrNull,  // DATE_ADD argument
       ];
       // state_changed_at se bumpea siempre — habilita el countdown "tiempo
       // en este estado" del home de Atención al Cliente y el reset explícito
       // de los plazos de re-alerta (acciones "No contestó / No llegó /
       // No vino" mandan PUT con el mismo state_id, ver migration 0023).
-      const qupdateOrder = "UPDATE orders SET `device_id` = ?, `branches_id` = ?,  `state_id` = ?, `problem` = ?, `password` = ?, `accesorios` = ?, `serial` = ?, `users_id` = ?, `device_color` = ?, `state_changed_at` = CONVERT_TZ(NOW(), '+00:00', '-03:00') WHERE order_id = ?";
+      // realert_until se materializa server-side: si realert_days viene
+      // null, queda NULL (transición a otro estado limpia el silencio).
+      // Si viene N, queda NOW_AR + N días.
+      const qupdateOrder = "UPDATE orders SET `device_id` = ?, `branches_id` = ?,  `state_id` = ?, `problem` = ?, `password` = ?, `accesorios` = ?, `serial` = ?, `users_id` = ?, `device_color` = ?, `state_changed_at` = CONVERT_TZ(NOW(), '+00:00', '-03:00'), `realert_count` = ?, `realert_until` = CASE WHEN ? IS NULL THEN NULL ELSE DATE_ADD(CONVERT_TZ(NOW(), '+00:00', '-03:00'), INTERVAL ? DAY) END WHERE order_id = ?";
 
       db.query(qupdateOrder, [...values, orderId], (err, data) => {
         db.release();
