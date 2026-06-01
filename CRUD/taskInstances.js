@@ -3,23 +3,16 @@ const router = express.Router();
 const pool = require('../database/dbConfig');
 
 // ============================================================================
-// Endpoints sobre task_instances (parte del sistema de tareas, migration 0027).
+// task_instances — instancias materializadas de tareas. Cada usuario tiene
+// su propia fila (las de grupo se fan-out al crear/cron). El /pending
+// filtra por user_id directamente; /complete propaga a todo el grupo
+// cuando la tarea madre es for_each_user=0.
 // ============================================================================
 
-// GET /pending?userId=X&grupoId=Y — instancias visibles para el usuario.
-// Convención:
-//   - assigned_to_user_id === userId  → tarea personal directa
-//   - assigned_to_user_id === 0 AND assigned_to_group_id === grupoId
-//                                     → tarea de grupo (sentinel 0 al crear)
-// Filtros:
-//   - scheduled_for <= NOW
-//   - completed_at IS NULL
-//   - postponed_until IS NULL OR postponed_until <= NOW
 router.get('/pending', (req, res) => {
     const userId = Number(req.query.userId);
-    const grupoId = Number(req.query.grupoId);
-    if (!Number.isFinite(userId) && !Number.isFinite(grupoId)) {
-        return res.status(400).json({ error: 'userId o grupoId requeridos' });
+    if (!Number.isFinite(userId) || userId <= 0) {
+        return res.status(400).json({ error: 'userId requerido' });
     }
     const q = `
         SELECT ti.*, t.title, t.description, t.can_postpone, t.for_each_user
@@ -29,15 +22,12 @@ router.get('/pending', (req, res) => {
           AND ti.completed_at IS NULL
           AND (ti.postponed_until IS NULL OR ti.postponed_until <= CONVERT_TZ(NOW(), '+00:00', '-03:00'))
           AND ti.scheduled_for <= CONVERT_TZ(NOW(), '+00:00', '-03:00')
-          AND (
-                (ti.assigned_to_user_id = ?)
-             OR (ti.assigned_to_user_id = 0 AND ti.assigned_to_group_id = ?)
-          )
+          AND ti.assigned_to_user_id = ?
         ORDER BY ti.scheduled_for ASC
     `;
     pool.getConnection((err, db) => {
         if (err) return res.status(500).send(err);
-        db.query(q, [userId || -1, grupoId || -1], (err, data) => {
+        db.query(q, [userId], (err, data) => {
             db.release();
             if (err) return res.status(500).send(err);
             return res.status(200).json(data);
@@ -45,31 +35,53 @@ router.get('/pending', (req, res) => {
     });
 });
 
-// POST /:id/complete — marcar completada. Si la tarea es for_each_user=0
-// (de grupo) y la instancia tiene sentinel user_id=0, también marca la
-// instancia "hermana" si la había duplicada — pero el unique constraint
-// la evita, así que basta con la fila propia.
-router.post('/:id/complete', (req, res) => {
+// Completar. Si la tarea madre es for_each_user=0 (tarea de grupo
+// compartida), marcamos TODAS las instancias del mismo task_id +
+// scheduled_for como completadas — completar una vez "limpia" para
+// todo el grupo. Si es individual (for_each_user=1), sólo la propia.
+router.post('/:id/complete', async (req, res) => {
     const { id } = req.params;
     const completedBy = Number(req.body?.completed_by) || null;
-    const q = `
-        UPDATE task_instances
-        SET completed_at = CONVERT_TZ(NOW(), '+00:00', '-03:00'),
-            completed_by = ?,
-            status = 'completed'
-        WHERE id = ? AND completed_at IS NULL
-    `;
-    pool.getConnection((err, db) => {
-        if (err) return res.status(500).send(err);
-        db.query(q, [completedBy, id], (err, data) => {
-            db.release();
-            if (err) return res.status(500).send(err);
-            return res.status(200).json({ updated: data.affectedRows });
-        });
-    });
+    const db = await pool.promise().getConnection();
+    try {
+        const [[row]] = await db.execute(
+            `SELECT ti.task_id, ti.scheduled_for, t.for_each_user
+             FROM task_instances ti JOIN tasks t ON t.id = ti.task_id
+             WHERE ti.id = ?`,
+            [id]
+        );
+        if (!row) { db.release(); return res.status(404).json({ error: 'instancia no encontrada' }); }
+
+        const setCompleted = `
+            completed_at = CONVERT_TZ(NOW(), '+00:00', '-03:00'),
+            completed_by = ?, status = 'completed'
+        `;
+        if (row.for_each_user === 0) {
+            // Marcar todas las del mismo task_id + scheduled_for (no
+            // completadas todavía). El completed_by queda con el usuario
+            // que disparó la acción — útil para el historial.
+            const [r] = await db.execute(
+                `UPDATE task_instances SET ${setCompleted}
+                 WHERE task_id = ? AND scheduled_for = ? AND completed_at IS NULL`,
+                [completedBy, row.task_id, row.scheduled_for]
+            );
+            return res.status(200).json({ updated: r.affectedRows, propagated_to_group: true });
+        } else {
+            const [r] = await db.execute(
+                `UPDATE task_instances SET ${setCompleted}
+                 WHERE id = ? AND completed_at IS NULL`,
+                [completedBy, id]
+            );
+            return res.status(200).json({ updated: r.affectedRows, propagated_to_group: false });
+        }
+    } catch (err) {
+        console.error('complete', err);
+        return res.status(500).send(err.message);
+    } finally {
+        db.release();
+    }
 });
 
-// POST /:id/postpone — postergar N minutos.
 router.post('/:id/postpone', (req, res) => {
     const { id } = req.params;
     const minutes = Number(req.body?.minutes) || 30;
