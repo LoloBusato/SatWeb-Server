@@ -78,6 +78,12 @@ app.use('/api/cobros', cobrosRoutes);
 app.use('/api/saved-texts', savedTextsRoutes);
 app.use('/api/internal/connection-monitor', connectionMonitorRoutes);
 
+// Sistema de tareas (migration 0027).
+const tasksRoutes = require('./CRUD/tasks');
+const taskInstancesRoutes = require('./CRUD/taskInstances');
+app.use('/api/tasks', tasksRoutes);
+app.use('/api/task-instances', taskInstancesRoutes);
+
 // Mount /api/v2/* router (TypeScript backend, built to dist/ by `npm run build`).
 // Wrapped in try/catch so `node index.js` still works if dist/ is missing
 // (e.g. in a fresh clone before running the build).

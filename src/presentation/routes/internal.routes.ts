@@ -55,6 +55,25 @@ export function internalRouter(
       // Idempotente (filtra por EXISTS reducestock).
       const archivedRepuestos = await orderRepo.archiveOldRepuestos();
 
+      // Paso 4 (junio 2026): generar instancias de tareas repetitivas para
+      // las próximas 24h. Delega al backend legacy llamando al endpoint
+      // /api/internal/tasks-tick — el legacy ya tiene la lógica de
+      // enumerateOccurrences y conoce el pool MySQL nativo. Hacemos la
+      // llamada via fetch contra el mismo host para no duplicar la lógica.
+      let tasksTick: { instances_created: number } | null = null;
+      try {
+        const selfBase = process.env.SELF_BASE_URL ?? '';
+        if (selfBase) {
+          const resp = await fetch(`${selfBase}/api/tasks/internal/tasks-tick`, {
+            method: 'POST',
+            headers: { Authorization: `Bearer ${env.CRON_SECRET}` },
+          });
+          if (resp.ok) tasksTick = await resp.json() as { instances_created: number };
+        }
+      } catch (err) {
+        req.log?.warn({ err }, 'tasks-tick fallback failed (no es bloqueante)');
+      }
+
       req.log?.info(
         {
           archived: archived.archived,
@@ -64,10 +83,11 @@ export function internalRouter(
           archivedRepuestos: archivedRepuestos.archived,
           messagesInserted: archivedRepuestos.messagesInserted,
           reducestockDeleted: archivedRepuestos.reducestockDeleted,
+          tasksInstancesCreated: tasksTick?.instances_created ?? null,
         },
         'cron: archive-overdue-tick executed',
       );
-      res.json({ archived, orphaned, archivedRepuestos });
+      res.json({ archived, orphaned, archivedRepuestos, tasksTick });
     } catch (err) {
       next(err);
     }
