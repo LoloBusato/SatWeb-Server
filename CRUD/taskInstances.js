@@ -102,4 +102,64 @@ router.post('/:id/postpone', (req, res) => {
     });
 });
 
+// GET /log?group_id=X&days=N — actividad reciente de tareas asignadas al
+// grupo. Devuelve hasta los últimos N días (default 5) con TODOS los
+// status para alimentar el feed del panel admin. El cron borra las
+// completadas/postergadas viejas (ver internal/tasks-cleanup), las
+// pendientes sobreviven.
+router.get('/log', (req, res) => {
+    const groupId = Number(req.query.group_id);
+    const days = Number(req.query.days) || 5;
+    if (!Number.isFinite(groupId) || groupId <= 0) {
+        return res.status(400).json({ error: 'group_id requerido' });
+    }
+    const q = `
+        SELECT ti.id, ti.task_id, ti.scheduled_for, ti.completed_at,
+               ti.postponed_until, ti.postpone_count, ti.status,
+               ti.assigned_to_user_id, ti.completed_by,
+               t.title, t.for_each_user,
+               COALESCE(cu.username, au.username) AS username
+        FROM task_instances ti
+        JOIN tasks t ON t.id = ti.task_id
+        LEFT JOIN users cu ON cu.idusers = ti.completed_by
+        LEFT JOIN users au ON au.idusers = ti.assigned_to_user_id
+        WHERE t.deleted_at IS NULL
+          AND t.assigned_to_group_id = ?
+          AND ti.scheduled_for >= DATE_SUB(CONVERT_TZ(NOW(), '+00:00', '-03:00'), INTERVAL ? DAY)
+        ORDER BY ti.scheduled_for DESC, ti.id DESC
+    `;
+    pool.getConnection((err, db) => {
+        if (err) return res.status(500).send(err);
+        db.query(q, [groupId, days], (err, data) => {
+            db.release();
+            if (err) return res.status(500).send(err);
+            return res.status(200).json(data);
+        });
+    });
+});
+
+// POST /internal/tasks-cleanup — invocado por el cron diario. Borra
+// task_instances de más de 5 días con status completed o postponed
+// (las pending sobreviven por si todavía se quieren completar).
+router.post('/internal/tasks-cleanup', (req, res) => {
+    const cronSecret = process.env.CRON_SECRET || '';
+    if (!cronSecret) return res.status(503).json({ error: 'CRON_SECRET no configurada' });
+    const header = req.headers.authorization || '';
+    if (header !== `Bearer ${cronSecret}`) return res.status(401).json({ error: 'unauthorized' });
+
+    const q = `
+        DELETE FROM task_instances
+        WHERE scheduled_for < DATE_SUB(CONVERT_TZ(NOW(), '+00:00', '-03:00'), INTERVAL 5 DAY)
+          AND status IN ('completed', 'postponed')
+    `;
+    pool.getConnection((err, db) => {
+        if (err) return res.status(500).send(err);
+        db.query(q, (err, data) => {
+            db.release();
+            if (err) return res.status(500).send(err);
+            return res.status(200).json({ deleted: data.affectedRows });
+        });
+    });
+});
+
 module.exports = router;

@@ -56,22 +56,27 @@ export function internalRouter(
       const archivedRepuestos = await orderRepo.archiveOldRepuestos();
 
       // Paso 4 (junio 2026): generar instancias de tareas repetitivas para
-      // las próximas 24h. Delega al backend legacy llamando al endpoint
-      // /api/internal/tasks-tick — el legacy ya tiene la lógica de
-      // enumerateOccurrences y conoce el pool MySQL nativo. Hacemos la
-      // llamada via fetch contra el mismo host para no duplicar la lógica.
+      // las próximas 24h Y cleanup de las viejas. Delega al backend legacy
+      // llamando a dos endpoints — los dos viven en el pool MySQL nativo
+      // y comparten la lógica de schema.
       let tasksTick: { instances_created: number } | null = null;
+      let tasksCleanup: { deleted: number } | null = null;
       try {
         const selfBase = process.env.SELF_BASE_URL ?? '';
         if (selfBase) {
-          const resp = await fetch(`${selfBase}/api/tasks/internal/tasks-tick`, {
+          const respTick = await fetch(`${selfBase}/api/tasks/internal/tasks-tick`, {
             method: 'POST',
             headers: { Authorization: `Bearer ${env.CRON_SECRET}` },
           });
-          if (resp.ok) tasksTick = await resp.json() as { instances_created: number };
+          if (respTick.ok) tasksTick = await respTick.json() as { instances_created: number };
+          const respClean = await fetch(`${selfBase}/api/task-instances/internal/tasks-cleanup`, {
+            method: 'POST',
+            headers: { Authorization: `Bearer ${env.CRON_SECRET}` },
+          });
+          if (respClean.ok) tasksCleanup = await respClean.json() as { deleted: number };
         }
       } catch (err) {
-        req.log?.warn({ err }, 'tasks-tick fallback failed (no es bloqueante)');
+        req.log?.warn({ err }, 'tasks-tick/cleanup fallback failed (no es bloqueante)');
       }
 
       req.log?.info(
@@ -84,10 +89,11 @@ export function internalRouter(
           messagesInserted: archivedRepuestos.messagesInserted,
           reducestockDeleted: archivedRepuestos.reducestockDeleted,
           tasksInstancesCreated: tasksTick?.instances_created ?? null,
+          tasksInstancesDeleted: tasksCleanup?.deleted ?? null,
         },
         'cron: archive-overdue-tick executed',
       );
-      res.json({ archived, orphaned, archivedRepuestos, tasksTick });
+      res.json({ archived, orphaned, archivedRepuestos, tasksTick, tasksCleanup });
     } catch (err) {
       next(err);
     }
