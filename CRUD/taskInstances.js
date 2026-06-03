@@ -9,6 +9,13 @@ const pool = require('../database/dbConfig');
 // cuando la tarea madre es for_each_user=0.
 // ============================================================================
 
+// /pending devuelve TODAS las instancias no completadas del usuario
+// (vencidas + futuras). El frontend separa en dos buckets según
+// effectiveTime = postponed_until ?? scheduled_for vs NOW:
+//   - effective <= NOW → "Acciones para hacer ahora" (full UI)
+//   - effective > NOW  → "Tareas del día" (apagada, sin postergar)
+// useTaskNotifier hace el mismo split y dispara alarma cuando una
+// instancia transiciona de futuro a vencida entre polls.
 router.get('/pending', (req, res) => {
     const userId = Number(req.query.userId);
     if (!Number.isFinite(userId) || userId <= 0) {
@@ -20,8 +27,6 @@ router.get('/pending', (req, res) => {
         JOIN tasks t ON t.id = ti.task_id
         WHERE t.deleted_at IS NULL
           AND ti.completed_at IS NULL
-          AND (ti.postponed_until IS NULL OR ti.postponed_until <= CONVERT_TZ(NOW(), '+00:00', '-03:00'))
-          AND ti.scheduled_for <= CONVERT_TZ(NOW(), '+00:00', '-03:00')
           AND ti.assigned_to_user_id = ?
         ORDER BY ti.scheduled_for ASC
     `;
