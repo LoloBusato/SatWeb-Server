@@ -15,70 +15,104 @@ const mysql = require('mysql2/promise');
 
 const EXECUTE = process.argv.includes('--execute');
 
-function toMysqlDt(d) {
+// AR-tz independent helpers (espejo de CRUD/tasks.js — junio 2026, fix
+// para que el script funcione igual desde Mac AR o Vercel UTC).
+const AR_TZ = 'America/Buenos_Aires';
+const AR_FMT = new Intl.DateTimeFormat('en-US', {
+    timeZone: AR_TZ,
+    year: 'numeric', month: '2-digit', day: '2-digit',
+    hour: '2-digit', minute: '2-digit', second: '2-digit',
+    weekday: 'short', hour12: false,
+});
+const DOW_MAP = { Sun: 0, Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5, Sat: 6 };
+
+function getARFields(date) {
+    const parts = AR_FMT.formatToParts(date).reduce((acc, p) => {
+        if (p.type !== 'literal') acc[p.type] = p.value;
+        return acc;
+    }, {});
+    const hh = parts.hour === '24' ? '00' : parts.hour;
+    return {
+        year: Number(parts.year), month: Number(parts.month), day: Number(parts.day),
+        hour: Number(hh), minute: Number(parts.minute), second: Number(parts.second),
+        dow: DOW_MAP[parts.weekday],
+    };
+}
+
+function addDays(ymd, n) {
+    const d = new Date(Date.UTC(ymd.year, ymd.month - 1, ymd.day));
+    d.setUTCDate(d.getUTCDate() + n);
+    return {
+        year: d.getUTCFullYear(), month: d.getUTCMonth() + 1, day: d.getUTCDate(),
+        dow: d.getUTCDay(), hour: 0, minute: 0, second: 0,
+    };
+}
+
+function partsToMysql(p) {
     const pad = n => String(n).padStart(2, '0');
-    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+    return `${p.year}-${pad(p.month)}-${pad(p.day)} ${pad(p.hour)}:${pad(p.minute)}:${pad(p.second)}`;
+}
+
+function partsToMs(p) {
+    return Date.UTC(p.year, p.month - 1, p.day, p.hour || 0, p.minute || 0, p.second || 0);
 }
 
 function enumerateOccurrences(task, fromAR, toAR) {
     const out = [];
-    const starts = new Date(task.starts_at);
-    if (toAR < starts) return out;
+    const starts = getARFields(new Date(task.starts_at));
+    const from = getARFields(fromAR);
+    const to = getARFields(toAR);
 
-    function applyTime(date) {
+    function pickTime() {
         if (task.is_random_time === 1 && task.random_time_from && task.random_time_to) {
             const [hf, mf, sf] = String(task.random_time_from).split(':').map(Number);
             const [ht, mt, st] = String(task.random_time_to).split(':').map(Number);
             const fromSec = (hf || 0) * 3600 + (mf || 0) * 60 + (sf || 0);
             const toSec = (ht || 0) * 3600 + (mt || 0) * 60 + (st || 0);
             const rand = fromSec + Math.floor(Math.random() * Math.max(1, toSec - fromSec));
-            const hh = Math.floor(rand / 3600);
-            const mm = Math.floor((rand % 3600) / 60);
-            const ss = rand % 60;
-            date.setHours(hh, mm, ss, 0);
-            return;
+            return { hour: Math.floor(rand / 3600), minute: Math.floor((rand % 3600) / 60), second: rand % 60 };
         }
-        let hh = starts.getHours(), mm = starts.getMinutes(), ss = starts.getSeconds();
         if (task.repeat_time) {
             const [h, m, s] = String(task.repeat_time).split(':').map(Number);
-            if (Number.isFinite(h)) hh = h;
-            if (Number.isFinite(m)) mm = m;
-            if (Number.isFinite(s)) ss = s;
+            return { hour: h || 0, minute: m || 0, second: s || 0 };
         }
-        date.setHours(hh, mm, ss, 0);
+        return { hour: starts.hour, minute: starts.minute, second: starts.second };
     }
 
     if (task.repeat_type === 'none') {
-        if (starts >= fromAR && starts <= toAR) out.push(new Date(starts));
+        const occ = { year: starts.year, month: starts.month, day: starts.day,
+                      hour: starts.hour, minute: starts.minute, second: starts.second };
+        if (partsToMs(occ) >= partsToMs(from) && partsToMs(occ) <= partsToMs(to)) out.push(occ);
         return out;
     }
 
-    const cursor = new Date(Math.max(starts.getTime(), fromAR.getTime()));
-    cursor.setHours(0, 0, 0, 0);
-    const end = new Date(toAR);
-    const startsDay = new Date(starts);
-    startsDay.setHours(0, 0, 0, 0);
+    const startsDayMs = Date.UTC(starts.year, starts.month - 1, starts.day);
+    const fromDayMs = Date.UTC(from.year, from.month - 1, from.day);
+    let cursor = startsDayMs >= fromDayMs
+        ? { year: starts.year, month: starts.month, day: starts.day, dow: starts.dow, hour: 0, minute: 0, second: 0 }
+        : { year: from.year, month: from.month, day: from.day, dow: from.dow, hour: 0, minute: 0, second: 0 };
+    const toDayMs = Date.UTC(to.year, to.month - 1, to.day);
 
-    while (cursor <= end) {
+    while (Date.UTC(cursor.year, cursor.month - 1, cursor.day) <= toDayMs) {
         let matches = false;
-        if (task.repeat_type === 'daily') {
-            matches = true;
-        } else if (task.repeat_type === 'weekly') {
-            matches = cursor.getDay() === Number(task.repeat_day_of_week);
-        } else if (task.repeat_type === 'biweekly') {
-            if (cursor.getDay() === Number(task.repeat_day_of_week)) {
-                const daysDiff = Math.round((cursor.getTime() - startsDay.getTime()) / (24 * 3600 * 1000));
+        if (task.repeat_type === 'daily') matches = true;
+        else if (task.repeat_type === 'weekly') matches = cursor.dow === Number(task.repeat_day_of_week);
+        else if (task.repeat_type === 'biweekly') {
+            if (cursor.dow === Number(task.repeat_day_of_week)) {
+                const curMs = Date.UTC(cursor.year, cursor.month - 1, cursor.day);
+                const daysDiff = Math.round((curMs - startsDayMs) / (24 * 3600 * 1000));
                 matches = daysDiff >= 0 && Math.floor(daysDiff / 7) % 2 === 0;
             }
-        } else if (task.repeat_type === 'monthly') {
-            matches = cursor.getDate() === Number(task.repeat_day_of_month);
-        }
+        } else if (task.repeat_type === 'monthly') matches = cursor.day === Number(task.repeat_day_of_month);
+
         if (matches) {
-            const occ = new Date(cursor);
-            applyTime(occ);
-            if (occ >= starts && occ >= fromAR && occ <= toAR) out.push(occ);
+            const tod = pickTime();
+            const occ = { year: cursor.year, month: cursor.month, day: cursor.day,
+                          hour: tod.hour, minute: tod.minute, second: tod.second };
+            const occMs = partsToMs(occ);
+            if (occMs >= partsToMs(starts) && occMs >= partsToMs(from) && occMs <= partsToMs(to)) out.push(occ);
         }
-        cursor.setDate(cursor.getDate() + 1);
+        cursor = addDays(cursor, 1);
     }
     return out;
 }
@@ -91,9 +125,10 @@ async function listActiveUsersInGroup(c, groupId) {
     return rows.map(r => r.idusers);
 }
 
-async function tryInsert(c, task, userId, scheduledFor) {
-    const dateOnly = scheduledFor.toISOString().slice(0, 10);
-    const scheduledMysql = toMysqlDt(scheduledFor);
+async function tryInsert(c, task, userId, occParts) {
+    const scheduledMysql = partsToMysql(occParts);
+    const pad = n => String(n).padStart(2, '0');
+    const dateOnly = `${occParts.year}-${pad(occParts.month)}-${pad(occParts.day)}`;
     const [existing] = await c.query(
         `SELECT 1 FROM task_instances
          WHERE task_id = ? AND assigned_to_user_id = ? AND DATE(scheduled_for) = ?
@@ -123,7 +158,7 @@ async function tryInsert(c, task, userId, scheduledFor) {
         const [[nowRow]] = await c.query("SELECT CONVERT_TZ(NOW(), '+00:00', '-03:00') AS now_ar");
         const nowAR = new Date(nowRow.now_ar);
         const to = new Date(nowAR.getTime() + 24 * 60 * 60 * 1000);
-        console.log(`Ventana: ${toMysqlDt(nowAR)} → ${toMysqlDt(to)}\n`);
+        console.log(`Ventana AR: ${partsToMysql(getARFields(nowAR))} → ${partsToMysql(getARFields(to))}\n`);
 
         const [tasks] = await c.query(
             `SELECT * FROM tasks WHERE deleted_at IS NULL AND repeat_type != 'none'`
