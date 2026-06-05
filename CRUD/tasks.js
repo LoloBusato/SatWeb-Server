@@ -132,10 +132,16 @@ function enumerateOccurrences(task, fromAR, toAR) {
 
     while (Date.UTC(cursor.year, cursor.month - 1, cursor.day) <= toDayMs) {
         let matches = false;
+        // Negocio cerrado fines de semana — daily/weekly nunca caen en
+        // sábado (dow=6) ni domingo (dow=0). biweekly y monthly se dejan
+        // como están (no había feedback sobre esos por ahora).
+        const isWeekend = cursor.dow === 0 || cursor.dow === 6;
         if (task.repeat_type === 'daily') {
-            matches = true;
+            matches = !isWeekend;
         } else if (task.repeat_type === 'weekly') {
-            matches = cursor.dow === Number(task.repeat_day_of_week);
+            const targetDow = Number(task.repeat_day_of_week);
+            const targetIsWeekend = targetDow === 0 || targetDow === 6;
+            matches = !targetIsWeekend && cursor.dow === targetDow;
         } else if (task.repeat_type === 'biweekly') {
             if (cursor.dow === Number(task.repeat_day_of_week)) {
                 const curMs = Date.UTC(cursor.year, cursor.month - 1, cursor.day);
