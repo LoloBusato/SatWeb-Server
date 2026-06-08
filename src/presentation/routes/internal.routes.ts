@@ -58,26 +58,48 @@ export function internalRouter(
       // Paso 4 (junio 2026): generar instancias de tareas repetitivas para
       // las próximas 24h Y cleanup de las viejas. Delega al backend legacy
       // llamando a dos endpoints — los dos viven en el pool MySQL nativo
-      // y comparten la lógica de schema.
+      // y comparten la lógica de schema. Loggeamos cada paso con timestamp
+      // y body para que el próximo cron deje rastro visible en los logs
+      // de Vercel aunque el tier Hobby los purgue rápido — al menos durante
+      // la ventana de retención queda evidencia de qué pasó.
       let tasksTick: { instances_created: number } | null = null;
       let tasksCleanup: { deleted: number } | null = null;
+      const t0 = Date.now();
+      const selfBase = process.env.SELF_BASE_URL ?? '';
+      console.log('[cron-tasks] start', new Date().toISOString(), 'selfBase:', selfBase || '(VACÍO)');
       try {
-        const selfBase = process.env.SELF_BASE_URL ?? '';
-        if (selfBase) {
-          const respTick = await fetch(`${selfBase}/api/tasks/internal/tasks-tick`, {
+        if (!selfBase) {
+          console.warn('[cron-tasks] SKIP: SELF_BASE_URL no está seteada en env. Las tareas no se generarán.');
+        } else {
+          const tickUrl = `${selfBase}/api/tasks/internal/tasks-tick`;
+          console.log('[cron-tasks] POST', tickUrl);
+          const respTick = await fetch(tickUrl, {
             method: 'POST',
             headers: { Authorization: `Bearer ${env.CRON_SECRET}` },
           });
-          if (respTick.ok) tasksTick = await respTick.json() as { instances_created: number };
-          const respClean = await fetch(`${selfBase}/api/task-instances/internal/tasks-cleanup`, {
+          const tickText = await respTick.text();
+          console.log('[cron-tasks] tasks-tick ←', respTick.status, '|', tickText.slice(0, 500));
+          if (respTick.ok) {
+            try { tasksTick = JSON.parse(tickText) as { instances_created: number }; } catch (_) {}
+          }
+
+          const cleanUrl = `${selfBase}/api/task-instances/internal/tasks-cleanup`;
+          console.log('[cron-tasks] POST', cleanUrl);
+          const respClean = await fetch(cleanUrl, {
             method: 'POST',
             headers: { Authorization: `Bearer ${env.CRON_SECRET}` },
           });
-          if (respClean.ok) tasksCleanup = await respClean.json() as { deleted: number };
+          const cleanText = await respClean.text();
+          console.log('[cron-tasks] tasks-cleanup ←', respClean.status, '|', cleanText.slice(0, 500));
+          if (respClean.ok) {
+            try { tasksCleanup = JSON.parse(cleanText) as { deleted: number }; } catch (_) {}
+          }
         }
       } catch (err) {
+        console.error('[cron-tasks] ERROR', (err as Error).message, (err as Error).stack);
         req.log?.warn({ err }, 'tasks-tick/cleanup fallback failed (no es bloqueante)');
       }
+      console.log('[cron-tasks] done in', Date.now() - t0, 'ms', 'tasksTick:', tasksTick, 'tasksCleanup:', tasksCleanup);
 
       req.log?.info(
         {
